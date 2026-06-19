@@ -13,3 +13,6 @@ Thumbs.db
 
 # Scratch / staging used during template authoring
 templates/nginx/_reference/
+
+# Build run scratch (one-shot generated builders, etc.)
+temp/
