@@ -101,12 +101,16 @@ pip install psycopg2-binary
 1. Install **Claude Code** if you haven't already: **https://claude.ai/code** — follow
    the instructions there and sign in with your Claude account (a Pro or Team
    subscription, or an API key).
-2. Install the writing-docket skill. In Claude Code, run:
-   ```
-   claude skill install https://github.com/elf1024-vot/writing-docket
-   ```
+2. Install the writing-docket skill. Two options:
+   - **Easiest:** download this project as a ZIP (the green **Code** button on the GitHub
+     page, then **Download ZIP**), unzip it, and **double-click `install.bat`**. It installs
+     the skill and opens Claude Code for you.
+   - **Or by command** — in Claude Code, run:
+     ```
+     claude skill install https://github.com/elf1024-vot/writing-docket
+     ```
    (Installing by URL needs **Git** — if you don't have it, install from
-   **https://git-scm.com/download/win** first, or install the skill from a local copy.)
+   **https://git-scm.com/download/win** first.)
 
 ---
 

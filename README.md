@@ -2,6 +2,22 @@
 
 A Claude Code skill package that builds a complete local writing infrastructure for novelists - Postgres database, PostgREST API, web UI editors, built-in search (full-text + semantic), MCP server, automated backups, and AI writing prompts - all from a single command.
 
+## How to start (three ways)
+
+You need **Claude Code** and **Docker Desktop** installed first (see Prerequisites below; new to this? read [INSTALL.md](INSTALL.md)). Then pick whichever is easiest:
+
+**A. One-click (easiest).** Download this repo (green **Code** button on GitHub, then **Download ZIP**), unzip it, and double-click **`install.bat`**. It installs the skill and opens Claude Code; then type `/start-here`.
+
+**B. One command.** In a terminal:
+```bash
+claude skill install https://github.com/elf1024-vot/writing-docket
+```
+Then start Claude Code (`claude`) and type `/start-here`.
+
+**C. Already have Claude Code open.** Just run the install command above in it, then `/start-here`.
+
+After that, `/start-here` interviews you and builds everything. Make sure Docker Desktop is running before you build. You will see a **Setup Complete** message and your browser will open to the writing system.
+
 ## Search
 
 Every build ships with search on by default, both flavors fully offline:
