@@ -185,7 +185,7 @@ RETURNS TABLE(entity_type text, entity_key text, title text, snippet text, rank 
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = {{SCHEMA}}, pg_temp
+SET search_path = {{SCHEMA}}, public, pg_temp
 AS $$
   SELECT
     si.entity_type,
@@ -205,7 +205,7 @@ RETURNS TABLE(entity_type text, entity_key text, title text, body text, distance
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = {{SCHEMA}}, pg_temp
+SET search_path = {{SCHEMA}}, public, pg_temp
 AS $$
   SELECT
     si.entity_type,
