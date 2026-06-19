@@ -5,6 +5,18 @@ description: Build a complete writing system from a plan document. Usage: /syste
 
 You are setting up a complete local writing infrastructure. Follow each phase in order. Do not skip phases. Do not summarize or abbreviate — execute every step.
 
+**Keep the writer company the whole way.** Assume the person watching is a novelist, not a
+developer, and that any silence longer than a few seconds reads as "it's frozen / did I
+break it?" So:
+- Before any step that can pause (downloads, the database initializing, the model pull,
+  health waits), say in one plain sentence what's happening and that a pause is normal.
+- During long waits, print a short progress line every 30-60 seconds — reassurance, not
+  jargon. Never go silent through a multi-minute download.
+- Speak plain English, not command names or error codes. ("Setting up the database" not
+  "running init.sql".) Save the technical detail for when something actually fails.
+- End each phase with a one-line "done, moving on" so progress feels continuous.
+The goal: the writer always knows it's working and never wonders whether to close the window.
+
 ---
 
 ## BEFORE ANYTHING ELSE — Print this banner
@@ -424,21 +436,41 @@ For each extension the user selected:
 
 ## Phase 7 — Start Docker
 
+**Before running anything, tell the writer what's about to happen — this is the longest
+pause in setup and silence here looks like a freeze.** Print:
+
+```
+Starting your writing system's services now.
+
+This is the slow part. On the first build, your computer downloads four programs
+(the database, the search engine, the web server, and the AI search helper). That can
+take 3-10 minutes depending on your internet speed - and the screen may look like it's
+sitting still while large files download in the background. That's completely normal.
+Please leave this window open; I'll tell you the moment it's ready.
+```
+
 From the project directory, run:
 ```
 docker compose up -d
 ```
 
-Poll for health every 10 seconds, up to 3 minutes:
+Poll for health every 10 seconds, up to 5 minutes. **Don't go silent while polling** — every
+30-60 seconds print a short, plain-language progress line so the writer knows it's alive,
+e.g. "Still downloading and starting up... (the database is up, waiting on the rest)" or
+"Almost there - the search helper is still getting ready." Use what `docker compose ps`
+actually shows; never invent progress.
 ```
 docker compose ps
 ```
 
 Wait until postgres, postgrest, nginx, AND ollama containers show status "running" or "healthy".
 
-If Postgres takes more than 60 seconds, print reassurance: "Postgres is initializing (first run pulls the image and runs init.sql — this is normal)."
+If Postgres takes more than 60 seconds, reassure in plain words: "The database is setting
+itself up for the first time (creating your tables) - this only happens once and is normal."
 
-The `ollama` container may take a little longer to report healthy on first run (image pull). Wait for it to reach "running"/"healthy" before the model-pull phase below. If it does not come up, do not abort the build — note that semantic search will be unavailable until Ollama is running; full-text search works regardless.
+The `ollama` container may take a little longer to report healthy on first run (image pull). Wait for it to reach "running"/"healthy" before the model-pull phase below. If it does not come up, do not abort the build — tell the writer in friendly terms that the AI semantic search will be unavailable until Ollama is running, but ordinary keyword search works right away, and the build will continue.
+
+When all four are up, print: "Your services are running. Setting up your project now..."
 
 ---
 
@@ -534,6 +566,13 @@ VALUES ('<name>', '<role>', '<age_or_era_or_blank>', '<brief description from pl
 ## Phase 9b — Pull embedding model + build search index
 
 This wires up search after the seed rows exist, so the index has content from the start.
+
+**Tell the writer before the pull — it's the second long pause.** Print:
+```
+Setting up AI-powered search. I'm downloading the search model now (about 300 MB,
+one time only). This can take a couple of minutes and the screen may pause while it
+downloads - that's expected. Keyword search already works; this adds search-by-meaning.
+```
 
 1. **Pull the embedding model** into the Ollama container (one-time, needs internet, ~300MB):
    ```
