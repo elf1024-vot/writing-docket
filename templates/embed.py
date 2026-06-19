@@ -283,6 +283,22 @@ def main():
         print(f"  ollama-down  : {stats['ollama_down']} "
               f"(embeddings left NULL; FTS still works. Re-run once Ollama is up.)")
 
+    log_run(project_path,
+            f"embed: indexed={stats['indexed']} embedded={stats['embedded']} "
+            f"skipped={stats['skipped']} ollama_down={stats['ollama_down']} model={model}")
+
+
+def log_run(project_path, message):
+    """Append a timestamped line to <project>/logs/embed.log (best-effort)."""
+    try:
+        from datetime import datetime
+        logs = Path(project_path) / "logs"
+        logs.mkdir(exist_ok=True)
+        with open(logs / "embed.log", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now().isoformat(timespec='seconds')}  {message}\n")
+    except Exception:
+        pass  # logging must never break the run
+
 
 if __name__ == "__main__":
     main()

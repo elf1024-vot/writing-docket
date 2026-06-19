@@ -1,7 +1,16 @@
+# Bounded, rotated container logs (10MB x 3 files per service) so they never grow
+# unbounded. View with: docker logs {{PROJECT_SLUG}}-postgres (etc.) or /system-logs.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: {{PROJECT_SLUG}}-postgres
+    logging: *default-logging
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -21,6 +30,7 @@ services:
   postgrest:
     image: postgrest/postgrest
     container_name: {{PROJECT_SLUG}}-postgrest
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       postgres:
@@ -40,6 +50,7 @@ services:
   ollama:
     image: ollama/ollama
     container_name: {{PROJECT_SLUG}}-ollama
+    logging: *default-logging
     restart: unless-stopped
     volumes:
       - {{PROJECT_SLUG}}_ollama:/root/.ollama
@@ -55,6 +66,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: {{PROJECT_SLUG}}-nginx
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       - postgrest

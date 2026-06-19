@@ -17,6 +17,17 @@ break it?" So:
 - End each phase with a one-line "done, moving on" so progress feels continuous.
 The goal: the writer always knows it's working and never wonders whether to close the window.
 
+**Log the whole build to a file.** As early as possible (right after the project directory
+exists in Phase 5), create `{{PROJECT_PATH}}\logs\` and start a build log at
+`{{PROJECT_PATH}}\logs\build-[YYYY-MM-DD-HHMM].log`. For every phase, append a timestamped
+header and the actual output of each `docker`, `psql`, `docker compose`, and script command
+you run (stdout AND stderr) — append, never overwrite. Redirect commands so their output is
+both shown to the writer and captured, e.g. run the command and tee/append its result to the
+log. If any command fails, write the full error to the log before deciding whether to abort.
+The point: if the build breaks, the writer has one file to open (or send) that shows exactly
+what happened. Tell the writer at the end where the log is. Credentials/passwords must NOT be
+written to the log — log the fact that .env was written, not its contents.
+
 ---
 
 ## BEFORE ANYTHING ELSE — Print this banner
@@ -258,7 +269,7 @@ when writing `prompts/Standards.md`:
 
 Create the project directory: `{{PROJECT_PATH}}`
 
-Create all subdirectories: postgres/, postgrest/, nginx/html/, mcp-server/, scripts/, bat-files/, prompts/, Chapters/, Notes/, qr/, backups/
+Create all subdirectories: postgres/, postgrest/, nginx/html/, mcp-server/, scripts/, bat-files/, prompts/, Chapters/, Notes/, qr/, backups/, logs/
 
 ### Preferred path — run the build script (`scripts/build_docket.py` in the repo root)
 

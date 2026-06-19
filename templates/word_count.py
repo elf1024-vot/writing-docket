@@ -125,12 +125,27 @@ def main():
         sys.exit(0)
 
     print(f"Updating word counts for {len(files)} file(s)...")
+    total = 0
     for ch, pt, filepath in files:
         wc = count_words(filepath)
+        total += wc
         label = f"Chapter-{ch}" + (f"-Part-{pt}" if pt > 1 else "")
         print(f"  {label}: {wc:,} words")
         update_word_count(schema, book, ch, pt, wc, **db_config)
     print("Done.")
+    _log_run(project_path, f"word_count: {len(files)} file(s), {total} words total, book={book}")
+
+
+def _log_run(project_path, message):
+    """Append a timestamped line to <project>/logs/word_count.log (best-effort)."""
+    try:
+        from datetime import datetime
+        logs = Path(project_path) / "logs"
+        logs.mkdir(exist_ok=True)
+        with open(logs / "word_count.log", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now().isoformat(timespec='seconds')}  {message}\n")
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     main()

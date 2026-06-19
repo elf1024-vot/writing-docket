@@ -9,29 +9,38 @@ SET SCHEMA={{SCHEMA}}
 FOR /F "tokens=1-3 delims=/ " %%a IN ("%DATE%") DO SET DATESTR=%%c-%%a-%%b
 SET DATESTR=%DATESTR: =0%
 
-REM Create backups directory if needed
+REM Create backups + logs directories if needed
 IF NOT EXIST "%PROJECT_PATH%\backups\" MKDIR "%PROJECT_PATH%\backups\"
+IF NOT EXIST "%PROJECT_PATH%\logs\" MKDIR "%PROJECT_PATH%\logs\"
+SET LOG=%PROJECT_PATH%\logs\backup.log
+echo [%DATE% %TIME%] backup started >> "%LOG%"
 
 REM DB backup via pg_dump
 echo Backing up database...
 docker exec %PROJECT_SLUG%-postgres pg_dump -U docket_master -d %SCHEMA% --schema=%SCHEMA% > "%PROJECT_PATH%\backups\%PROJECT_SLUG%-%DATESTR%.sql"
 IF %ERRORLEVEL% NEQ 0 (
   echo ERROR: Database backup failed.
+  echo [%DATE% %TIME%] ERROR: database backup failed ^(pg_dump exit %ERRORLEVEL%^) >> "%LOG%"
   EXIT /B 1
 )
 echo Database backup saved: %PROJECT_SLUG%-%DATESTR%.sql
+echo [%DATE% %TIME%] database dump OK: %PROJECT_SLUG%-%DATESTR%.sql >> "%LOG%"
 
 REM Manuscript backup (Chapters, Notes, qr directories)
 echo Backing up manuscripts...
 powershell -Command "Compress-Archive -Path '%PROJECT_PATH%\Chapters', '%PROJECT_PATH%\Notes', '%PROJECT_PATH%\qr' -DestinationPath '%PROJECT_PATH%\backups\%PROJECT_SLUG%-manuscripts-%DATESTR%.zip' -Force"
 IF %ERRORLEVEL% NEQ 0 (
   echo ERROR: Manuscript backup failed.
+  echo [%DATE% %TIME%] ERROR: manuscript zip failed ^(exit %ERRORLEVEL%^) >> "%LOG%"
   EXIT /B 1
 )
 echo Manuscript backup saved: %PROJECT_SLUG%-manuscripts-%DATESTR%.zip
+echo [%DATE% %TIME%] manuscript zip OK: %PROJECT_SLUG%-manuscripts-%DATESTR%.zip >> "%LOG%"
 
 REM Prune backups older than 30 days (keep last 30)
 powershell -Command "Get-ChildItem '%PROJECT_PATH%\backups\' -Filter '*.sql' | Sort-Object LastWriteTime -Descending | Select-Object -Skip 30 | Remove-Item -Force"
 powershell -Command "Get-ChildItem '%PROJECT_PATH%\backups\' -Filter '*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -Skip 30 | Remove-Item -Force"
 
 echo Backup complete: %DATE% %TIME%
+echo [%DATE% %TIME%] backup complete >> "%LOG%"
+echo Reminder: copy your backups\ folder to a USB drive for hardware protection.
