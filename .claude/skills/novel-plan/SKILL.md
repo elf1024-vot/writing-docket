@@ -5,6 +5,13 @@ description: Load scene planning context from the project database. Usage: /nove
 
 You are loading scene planning context for a writing session. This is a wrapper that loads data and then hands off to the Planning.md prompt.
 
+**Talk to a novelist, not a developer.** Greet the writer in one plain sentence that says
+what you're about to do, for example: "I'll pull together everything we know about this
+chapter, who's in it, where it happens, and the notes that matter, so we can plan the
+scene; nothing gets written yet." Narrate the steps in everyday words, and present the
+scene brief as a friendly, readable summary, not a raw table or command output. Numbers
+are fine where they help, but lead with a human sentence and skip the jargon.
+
 ## Step 1 — Load project context
 
 Read project.json from current directory (or search upward for it). Load all fields.

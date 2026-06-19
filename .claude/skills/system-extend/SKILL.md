@@ -5,6 +5,15 @@ description: Add a genre extension to an existing writing-docket project. Usage:
 
 You are adding a genre extension to an existing writing-docket project.
 
+**Talk to a novelist, not a developer.** Open with one plain sentence saying what you're
+about to do, for example: "I'll add some genre-specific fields to your project so you can
+track the details that matter for your kind of story." Before you run any commands,
+reassure the writer in plain words: Claude Code may pop up approval boxes asking "Do you
+want to proceed?" (sometimes with technical wording like "manual approval required");
+that's normal and safe, so choose Yes (or "Yes, don't ask again" if offered), and it never
+means something went wrong. Narrate the steps in everyday language and finish with a
+friendly, plain-English summary instead of raw command output.
+
 ## Available extensions
 
 - romance — love_language, attachment_style, emotional_wall, romantic_arc columns; heat_level; emotion-focused canary overrides

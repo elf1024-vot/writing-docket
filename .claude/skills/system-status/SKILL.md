@@ -5,6 +5,16 @@ description: Check health of a running writing-docket project. Usage: /system-st
 
 You are checking the health of a writing-docket project.
 
+**Talk to a novelist, not a developer.** Open with one plain sentence saying what you're
+about to do, for example: "I'll run a quick health check on your writing system to make
+sure everything's running; this only looks, it doesn't change anything." Before you run any
+checks, reassure the writer in plain words: Claude Code may pop up approval boxes asking
+"Do you want to proceed?" (sometimes with technical wording like "manual approval
+required"); that's normal and safe, so choose Yes (or "Yes, don't ask again" if offered),
+and it never means something went wrong. Narrate the checks in everyday language and give a
+friendly plain-English summary of the results first; the status table and numbers can
+follow, but lead with a human sentence ("Good news, everything's up and running").
+
 ## Step 1 — Load project
 
 Read project.json from current directory. Load: project_slug, schema, project_path, ui_port, installed_extensions, canary_thresholds.

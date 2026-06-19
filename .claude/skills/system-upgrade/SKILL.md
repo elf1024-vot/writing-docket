@@ -5,6 +5,15 @@ description: Upgrade writing-docket to the latest skill version. Usage: /system-
 
 You are upgrading the writing-docket skill and the installed project infrastructure.
 
+**Talk to a novelist, not a developer.** Open with one plain sentence saying what you're
+about to do, for example: "I'll update your writing system to the latest version; your
+writing and your settings stay safe." Before you run any commands, reassure the writer in
+plain words: Claude Code may pop up approval boxes asking "Do you want to proceed?"
+(sometimes with technical wording like "manual approval required"); that's normal and
+safe, so choose Yes (or "Yes, don't ask again" if offered), and it never means something
+went wrong. Narrate the steps in everyday language and finish with a friendly,
+plain-English summary instead of raw command output.
+
 ## Step 1 — Load project context
 
 Read project.json. Load: project_slug, schema, project_path, schema_version, installed_extensions.

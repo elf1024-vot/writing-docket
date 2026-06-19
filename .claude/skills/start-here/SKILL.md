@@ -11,6 +11,13 @@ then runs `/system-build docket-plan.md` when ready.
 Keep it friendly and plain-English. Ask the questions in small batches, accept short
 answers, and never make the writer think about databases, keys, or config.
 
+**Talk to a novelist, not a developer.** Open by greeting the writer in one plain sentence
+that says what you're about to do and that nothing gets built yet, for example: "I'll ask
+you a few questions and write a plan file you can look over; nothing is created or changed
+until you say go." Narrate the few steps in everyday words and, at the end, give a short,
+human summary of what's in the plan rather than dumping the raw file. No jargon, no command
+names in the conversation.
+
 ## Step 1 — Explain what this does
 
 Tell the writer: "I'll ask you a few questions about your project and write a plan file you

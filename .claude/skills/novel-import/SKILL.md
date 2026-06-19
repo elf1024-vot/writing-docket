@@ -9,6 +9,15 @@ optionally descriptions they chose to write); the schema's keys and links are ba
 you generate the ids and resolve the links. You do NOT add or embellish content — you
 import exactly what the writer wrote, leaving blank what they left blank.
 
+**Talk to a novelist, not a developer.** Open with one plain sentence saying what you're
+about to do, for example: "I'll bring in the characters, places, groups, and chapters you
+filled into the spreadsheets, exactly as you wrote them." Before you run any commands,
+reassure the writer in plain words: Claude Code may pop up approval boxes asking "Do you
+want to proceed?" (sometimes with technical wording like "manual approval required");
+that's normal and safe, so choose Yes (or "Yes, don't ask again" if offered), and it never
+means something went wrong. Narrate the steps in everyday language and give the preview and
+final results as a friendly, plain-English summary rather than raw command output.
+
 ## Step 1 — Load project context
 
 Read `project.json` (current dir or search upward). Capture `project_slug` (= schema),

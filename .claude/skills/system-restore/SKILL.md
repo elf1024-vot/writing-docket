@@ -5,6 +5,21 @@ description: Restore a writing-docket project from a backup. Usage: /system-rest
 
 You are restoring a writing-docket project from a backup.
 
+**Talk to a novelist, not a developer.** Open with one plain sentence saying what you're
+about to do, for example: "I'll help you roll your project back to an earlier saved copy."
+Before you run any commands, reassure the writer in plain words: Claude Code may pop up
+approval boxes asking "Do you want to proceed?" (sometimes with technical wording like
+"manual approval required"); that's normal and safe, so choose Yes (or "Yes, don't ask
+again" if offered), and it never means something went wrong. Narrate the steps in everyday
+language and finish with a friendly, plain-English summary instead of raw command output.
+
+**This replaces current work, so be calm but crystal clear.** Restoring overwrites what's
+there now with the older saved copy. In the confirmation step, spell out in plain words
+exactly what will be overwritten (the database, your chapter/notes files, or both,
+depending on their choice) and that everything else is left untouched. Do not start the
+restore until the writer has clearly confirmed; keep the existing confirmation wording
+(typing YES) exactly as written below.
+
 ## Step 1 — Load project context
 
 Read project.json. Load: project_slug, schema, project_path.

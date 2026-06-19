@@ -10,6 +10,15 @@ membership prose — leave those empty for the writer.
 
 A group is any grouping: gang, guild, family, faction, crew, coven, house, order, agency.
 
+**Talk to a novelist, not a developer.** Open with one plain sentence saying what you're
+about to do, for example: "I'll set up entries for your groups, the gangs, guilds,
+families, or factions in your story, so they're ready to flesh out later." Before you run
+any commands, reassure the writer in plain words: Claude Code may pop up approval boxes
+asking "Do you want to proceed?" (sometimes with technical wording like "manual approval
+required"); that's normal and safe, so choose Yes (or "Yes, don't ask again" if offered),
+and it never means something went wrong. Narrate the steps in everyday language and finish
+with a friendly, plain-English summary instead of raw command output.
+
 ## Step 1 — Load project context
 
 Read `project.json` (current dir or search upward). Capture `project_slug` (= schema),

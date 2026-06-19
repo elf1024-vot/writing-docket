@@ -5,6 +5,22 @@ description: Tear down a writing-docket project. Usage: /system-uninstall
 
 You are uninstalling a writing-docket project. Follow carefully — some data will be permanently deleted.
 
+**Talk to a novelist, not a developer.** Open with one plain sentence saying what you're
+about to do, for example: "I'll remove the machinery that runs your writing system; your
+actual writing stays safe on your computer." Before you run any commands, reassure the
+writer in plain words: Claude Code may pop up approval boxes asking "Do you want to
+proceed?" (sometimes with technical wording like "manual approval required"); that's normal
+and safe, so choose Yes (or "Yes, don't ask again" if offered), and it never means
+something went wrong. Narrate the steps in everyday language and finish with a friendly,
+plain-English summary instead of raw command output.
+
+**This permanently removes things, so be calm but crystal clear.** In the confirmation
+step, say in plain words exactly what gets deleted (the database and the behind-the-scenes
+program files) and, just as clearly, what is kept and stays safe: their chapters, notes,
+QR files, backups, and plan. Do not delete anything until the writer has clearly confirmed;
+keep the existing confirmation requirement (typing the project name exactly) exactly as
+written below.
+
 ## Step 1 — Find the project
 
 Read `project.json` from the current directory (or search upward). If not found, ask: "Where is your project folder?"
