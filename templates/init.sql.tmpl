@@ -24,6 +24,12 @@ CREATE SCHEMA IF NOT EXISTS {{SCHEMA}};
 
 GRANT USAGE ON SCHEMA {{SCHEMA}} TO {{MASTER_USER}}, {{EDITOR_USER}}, {{CLAUDE_USER}};
 
+-- ─── Vector extension (pgvector) ──────────────────────────────────────────────
+-- Provided by the pgvector/pgvector:pg16 image. Required by the search_index
+-- embedding column and the semantic search function below.
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- ─── Characters ───────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS {{SCHEMA}}.characters (
@@ -150,10 +156,77 @@ CREATE TABLE IF NOT EXISTS {{SCHEMA}}.notes (
 -- ─── Synthesis tables (conditional — inserted by build skill when synthesis_tracking=yes) ──
 -- {{SYNTHESIS_TABLES}}
 
+-- ─── Search index (full-text + semantic) ─────────────────────────────────────
+-- One unified table holds both FTS and vectors for every searchable entity.
+-- The tsv column is GENERATED, so full-text search works the instant a row is
+-- written — no pipeline needed. The embedding column is maintained out of band by
+-- scripts/embed.py (via Ollama / nomic-embed-text, 768 dims) and stays NULL until
+-- that runs, so the system degrades gracefully when Ollama is down: FTS still works,
+-- semantic search simply returns no rows for un-embedded content.
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.search_index (
+  entity_type  TEXT NOT NULL,   -- character | location | group | chapter | note | chapter_prose
+  entity_key   TEXT NOT NULL,   -- stable key: characters.name, locations.location_id, groups.group_id, 'book|chapter|part' for chapters, note_id::text for notes
+  title        TEXT,
+  body         TEXT,
+  content_hash TEXT,            -- sha256 of body, set by embed.py to skip unchanged rows
+  embedding    vector(768),     -- nomic-embed-text dims; NULL until embed.py runs / when Ollama down
+  tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body,''))) STORED,
+  updated_at   TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (entity_type, entity_key)
+);
+CREATE INDEX IF NOT EXISTS search_index_tsv_idx ON {{SCHEMA}}.search_index USING GIN (tsv);
+CREATE INDEX IF NOT EXISTS search_index_vec_idx ON {{SCHEMA}}.search_index USING hnsw (embedding vector_cosine_ops);
+
+-- ─── Search functions (SECURITY DEFINER so PostgREST/MCP can call them) ────────
+
+CREATE OR REPLACE FUNCTION {{SCHEMA}}.search_fts(q text, k int DEFAULT 20)
+RETURNS TABLE(entity_type text, entity_key text, title text, snippet text, rank real)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = {{SCHEMA}}, pg_temp
+AS $$
+  SELECT
+    si.entity_type,
+    si.entity_key,
+    si.title,
+    ts_headline('english', coalesce(si.body, ''), websearch_to_tsquery('english', q),
+                'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=24, MinWords=8') AS snippet,
+    ts_rank(si.tsv, websearch_to_tsquery('english', q)) AS rank
+  FROM {{SCHEMA}}.search_index si
+  WHERE si.tsv @@ websearch_to_tsquery('english', q)
+  ORDER BY rank DESC
+  LIMIT k;
+$$;
+
+CREATE OR REPLACE FUNCTION {{SCHEMA}}.search_semantic(query_embedding vector, k int DEFAULT 20)
+RETURNS TABLE(entity_type text, entity_key text, title text, body text, distance real)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = {{SCHEMA}}, pg_temp
+AS $$
+  SELECT
+    si.entity_type,
+    si.entity_key,
+    si.title,
+    si.body,
+    (si.embedding <=> query_embedding) AS distance
+  FROM {{SCHEMA}}.search_index si
+  WHERE si.embedding IS NOT NULL
+  ORDER BY si.embedding <=> query_embedding
+  LIMIT k;
+$$;
+
 -- ─── Grants: editor role ──────────────────────────────────────────────────────
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {{SCHEMA}} TO {{EDITOR_USER}};
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {{SCHEMA}} TO {{EDITOR_USER}};
+-- search_index: embed.py writes as editor (upserts rows + sets embeddings).
+GRANT SELECT, INSERT, UPDATE, DELETE ON {{SCHEMA}}.search_index TO {{EDITOR_USER}};
+GRANT EXECUTE ON FUNCTION {{SCHEMA}}.search_fts(text, int) TO {{EDITOR_USER}};
+GRANT EXECUTE ON FUNCTION {{SCHEMA}}.search_semantic(vector, int) TO {{EDITOR_USER}};
 
 -- ─── Grants: claude role ──────────────────────────────────────────────────────
 
@@ -162,9 +235,16 @@ GRANT UPDATE (word_count, qr, last_modified) ON {{SCHEMA}}.chapters TO {{CLAUDE_
 GRANT INSERT ON {{SCHEMA}}.notes TO {{CLAUDE_USER}};
 GRANT UPDATE ON {{SCHEMA}}.notes TO {{CLAUDE_USER}};
 GRANT USAGE, SELECT ON SEQUENCE {{SCHEMA}}.notes_note_id_seq TO {{CLAUDE_USER}};
+-- search_index: claude reads via the search functions (and directly).
+GRANT SELECT ON {{SCHEMA}}.search_index TO {{CLAUDE_USER}};
+GRANT EXECUTE ON FUNCTION {{SCHEMA}}.search_fts(text, int) TO {{CLAUDE_USER}};
+GRANT EXECUTE ON FUNCTION {{SCHEMA}}.search_semantic(vector, int) TO {{CLAUDE_USER}};
 
 -- ─── Grants: master role ──────────────────────────────────────────────────────
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA {{SCHEMA}} TO {{MASTER_USER}};
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {{SCHEMA}} TO {{MASTER_USER}};
 GRANT ALL PRIVILEGES ON SCHEMA {{SCHEMA}} TO {{MASTER_USER}};
+GRANT ALL PRIVILEGES ON {{SCHEMA}}.search_index TO {{MASTER_USER}};
+GRANT EXECUTE ON FUNCTION {{SCHEMA}}.search_fts(text, int) TO {{MASTER_USER}};
+GRANT EXECUTE ON FUNCTION {{SCHEMA}}.search_semantic(vector, int) TO {{MASTER_USER}};

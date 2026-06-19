@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Search - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+  <style>
+    .search-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+    .search-bar input[type=search] { flex: 1; min-width: 240px; font-size: 0.95rem; padding: 10px 12px; }
+    .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .segmented button { border: none; border-radius: 0; background: rgba(255,255,255,0.03); padding: 9px 16px; }
+    .segmented button.active { background: color-mix(in srgb, var(--accent) 22%, transparent); color: #fff; }
+    .result { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; }
+    .result-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .result-title { font-size: 1rem; color: #e8e2d8; }
+    .result-title a { color: var(--accent); text-decoration: none; }
+    .result-title a:hover { text-decoration: underline; }
+    .result-body { font-size: 0.85rem; color: #bbb; line-height: 1.6; }
+    .result-body mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: #fff; padding: 0 2px; border-radius: 2px; }
+    .result-meta { margin-left: auto; font-size: 0.72rem; color: var(--muted); font-family: 'Courier New', monospace; }
+    .empty { color: var(--muted); font-style: italic; padding: 24px 0; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="search.html" class="active">Search</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>SEARCH</h1>
+  <span class="subtitle">full-text &amp; semantic, fully offline</span>
+</header>
+<div id="status">Type a query and press Enter.</div>
+
+<main class="content">
+
+  <section class="section">
+    <div class="search-bar">
+      <input type="search" id="q" placeholder="Search characters, locations, chapters, notes, prose…" autofocus>
+      <div class="segmented" id="modeToggle">
+        <button data-mode="semantic" class="active">Semantic</button>
+        <button data-mode="text">Text</button>
+      </div>
+      <button class="primary" id="goBtn">Search</button>
+    </div>
+    <div id="banner"></div>
+    <div id="results"></div>
+  </section>
+
+</main>
+
+<script>
+const OLLAMA_MODEL = 'nomic-embed-text';
+let mode = 'semantic';
+
+function status(msg, cls){ const s = document.getElementById('status'); s.textContent = msg; s.className = cls || ''; }
+function esc(t){ return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// entity_type -> { label, link(key) }
+function editorLink(type, key){
+  switch(type){
+    case 'character':     return 'character-editor.html';
+    case 'location':      return 'location-editor.html';
+    case 'group':         return 'index.html';
+    case 'chapter':       return 'chapter-editor.html';
+    case 'chapter_prose': return 'chapter-editor.html';
+    case 'note':          return 'notes-editor.html';
+    default:              return 'index.html';
+  }
+}
+const TYPE_BADGE = {
+  character:'badge-info', location:'badge-ok', group:'badge-muted',
+  chapter:'badge-warn', chapter_prose:'badge-warn', note:'badge-crit'
+};
+
+function showBanner(html, cls){
+  document.getElementById('banner').innerHTML = html
+    ? `<div class="callout ${cls||'warn'}">${html}</div>` : '';
+}
+
+function renderResults(rows, semantic){
+  const box = document.getElementById('results');
+  if (!rows || !rows.length){ box.innerHTML = '<p class="empty">No matches.</p>'; return; }
+  box.innerHTML = rows.map(r => {
+    const badge = TYPE_BADGE[r.entity_type] || 'badge-muted';
+    // FTS returns snippet (already ts_headline with <mark>); semantic returns body.
+    const bodyHtml = semantic ? esc((r.body||'').slice(0,300)) : (r.snippet||'');
+    const score = semantic
+      ? (r.distance!=null ? `dist ${Number(r.distance).toFixed(3)}` : '')
+      : (r.rank!=null ? `rank ${Number(r.rank).toFixed(3)}` : '');
+    return `<div class="result">
+      <div class="result-head">
+        <span class="badge ${badge}">${esc(r.entity_type)}</span>
+        <span class="result-title"><a href="${editorLink(r.entity_type, r.entity_key)}">${esc(r.title || r.entity_key)}</a></span>
+        <span class="result-meta">${esc(r.entity_key)} &middot; ${score}</span>
+      </div>
+      <div class="result-body">${bodyHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+async function runText(q){
+  const r = await fetch('/api/rpc/search_fts', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({q: q, k: 20})
+  });
+  if (!r.ok) throw new Error('search_fts HTTP ' + r.status);
+  return await r.json();
+}
+
+async function runSemantic(q){
+  // 1) get the query embedding from the local Ollama container (via nginx /ollama/).
+  let emb;
+  try {
+    const er = await fetch('/ollama/api/embeddings', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({model: OLLAMA_MODEL, prompt: q})
+    });
+    if (!er.ok) throw new Error('ollama HTTP ' + er.status);
+    const ej = await er.json();
+    emb = ej.embedding;
+    if (!emb) throw new Error('no embedding returned');
+  } catch(e) {
+    return {fallback: true};
+  }
+  // 2) call the semantic RPC with the pgvector literal.
+  const lit = '[' + emb.join(',') + ']';
+  const r = await fetch('/api/rpc/search_semantic', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({query_embedding: lit, k: 20})
+  });
+  if (!r.ok) throw new Error('search_semantic HTTP ' + r.status);
+  return {rows: await r.json()};
+}
+
+async function doSearch(){
+  const q = document.getElementById('q').value.trim();
+  showBanner('');
+  if (!q){ status('Type a query and press Enter.'); document.getElementById('results').innerHTML=''; return; }
+  status('Searching…');
+  try {
+    if (mode === 'semantic'){
+      const res = await runSemantic(q);
+      if (res.fallback){
+        showBanner('Semantic search needs the Ollama container running - falling back to text search.', 'warn');
+        const rows = await runText(q);
+        renderResults(rows, false);
+        status(`${rows.length} result(s) (text fallback).`, 'success');
+        return;
+      }
+      renderResults(res.rows, true);
+      status(`${(res.rows||[]).length} result(s) (semantic).`, 'success');
+    } else {
+      const rows = await runText(q);
+      renderResults(rows, false);
+      status(`${rows.length} result(s) (text).`, 'success');
+    }
+  } catch(e){
+    status('Error: ' + e.message, 'error');
+  }
+}
+
+document.getElementById('modeToggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  mode = btn.dataset.mode;
+  [...document.querySelectorAll('#modeToggle button')].forEach(b => b.classList.toggle('active', b===btn));
+  if (document.getElementById('q').value.trim()) doSearch();
+});
+document.getElementById('goBtn').addEventListener('click', doSearch);
+document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+</script>
+</body>
+</html>

@@ -13,9 +13,19 @@ Read project.json from current directory. Load: project_slug, schema, project_pa
 
 Run: `docker compose ps` from project directory.
 
-Parse output for: {{PROJECT_SLUG}}-postgres, {{PROJECT_SLUG}}-postgrest, {{PROJECT_SLUG}}-nginx.
+Parse output for: {{PROJECT_SLUG}}-postgres, {{PROJECT_SLUG}}-postgrest, {{PROJECT_SLUG}}-nginx, {{PROJECT_SLUG}}-ollama.
 
 Status: running/healthy = PASS, stopped/restarting/absent = FAIL.
+
+For the ollama container, also confirm the embedding model is present:
+```
+docker exec {{PROJECT_SLUG}}-ollama ollama list
+```
+Look for `nomic-embed-text` in the output. If the container is up but the model is missing,
+report WARN — "Ollama running but nomic-embed-text not pulled; semantic search unavailable.
+Run: docker exec {{PROJECT_SLUG}}-ollama ollama pull nomic-embed-text, then python scripts/embed.py --full."
+If the ollama container is down, report it as WARN (not FAIL): full-text search still works;
+only semantic search is affected.
 
 ## Step 3 — Check PostgREST
 
@@ -42,7 +52,13 @@ SELECT COUNT(*) FROM {{SCHEMA}}.chapters WHERE summary NOT LIKE '[EXAMPLE]%';
 SELECT SUM(word_count) FROM {{SCHEMA}}.chapters;
 SELECT COUNT(*) FROM {{SCHEMA}}.notes WHERE priority='HIGH' AND status='open';
 SELECT chapter, summary, qr FROM {{SCHEMA}}.chapters ORDER BY chapter DESC LIMIT 3;
+SELECT count(*), count(embedding) FROM {{SCHEMA}}.search_index;
 ```
+
+The last query reports the search index health: total indexed rows vs. rows with an
+embedding. If `count(*) > 0` but `count(embedding) = 0`, semantic search has nothing to
+match against — note that the model pull + `python scripts/embed.py --full` still needs to
+run (full-text search works regardless).
 
 ## Step 7 — Print status report
 
@@ -54,6 +70,7 @@ SELECT chapter, summary, qr FROM {{SCHEMA}}.chapters ORDER BY chapter DESC LIMIT
 ║    Postgres       [PASS/FAIL]                        ║
 ║    PostgREST      [PASS/FAIL]                        ║
 ║    Nginx (Web UI) [PASS/FAIL]  http://localhost:PORT ║
+║    Ollama         [PASS/WARN]  (model: nomic-embed)  ║
 ║    MCP Server     [PASS/FAIL]                        ║
 ╠══════════════════════════════════════════════════════╣
 ║  Project Stats                                       ║
@@ -61,6 +78,7 @@ SELECT chapter, summary, qr FROM {{SCHEMA}}.chapters ORDER BY chapter DESC LIMIT
 ║    Chapters:      [N]                                ║
 ║    Total words:   [N]                                ║
 ║    Open HIGH notes: [N]                              ║
+║    Search index:  [N] rows / [N] embedded           ║
 ╠══════════════════════════════════════════════════════╣
 ║  Recent QR Scores                                    ║
 ║    Ch1: [score]  Ch2: [score]  Ch3: [score]         ║

@@ -32,5 +32,13 @@ http {
         return 204;
       }
     }
+
+    # Proxy Ollama (local embeddings for semantic search).
+    # Loopback-only still holds: nginx itself is bound to 127.0.0.1 by compose.
+    location /ollama/ {
+      rewrite ^/ollama/(.*)$ /$1 break;
+      proxy_pass http://ollama:11434;
+      proxy_set_header Host $host;
+    }
   }
 }

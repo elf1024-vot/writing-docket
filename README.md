@@ -1,6 +1,15 @@
 # writing-docket
 
-A Claude Code skill package that builds a complete local writing infrastructure for novelists — Postgres database, PostgREST API, web UI editors, MCP server, automated backups, and AI writing prompts — all from a single command.
+A Claude Code skill package that builds a complete local writing infrastructure for novelists - Postgres database, PostgREST API, web UI editors, built-in search (full-text + semantic), MCP server, automated backups, and AI writing prompts - all from a single command.
+
+## Search
+
+Every build ships with search on by default, both flavors fully offline:
+
+- **Full-text search** is always available - PostgreSQL indexes every character, location, group, chapter, note, and chapter prose file automatically (a generated `tsvector`), so keyword search works with zero setup.
+- **Semantic search** finds content by meaning via a local `ollama` container running `nomic-embed-text` (768-dim vectors) with the `pgvector` extension. The model is pulled once (~300MB) at setup; after that it runs entirely on your machine - no data ever leaves it.
+
+Search is exposed three ways: a UI Search page, PostgREST RPC functions (`search_fts`, `search_semantic`), and an MCP tool (`pg_search`). If Ollama is down, semantic search falls back to full-text - it never crashes.
 
 ## Prerequisites
 

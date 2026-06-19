@@ -53,6 +53,8 @@ If Docker is not running, print: "Docker Desktop is not running. Please start Do
 
 **Port check**: Run `netstat -ano | findstr :8090` — if port 8090 is in use, note the conflict and plan to use 8091 (increment until free).
 
+**Search / Ollama note (not a hard-stop)**: This build includes built-in search. The semantic half uses a local `ollama` container that needs a one-time internet pull of the `nomic-embed-text` model (~300MB) and roughly 1-2GB RAM to run. None of this blocks the build: if the machine is offline or RAM-constrained, full-text search still works out of the box and semantic search can be enabled later (pull the model, then run `python scripts/embed.py --full`). Mention this to the writer in pre-flight; do not abort on it.
+
 ---
 
 ## Phase 1 — Parse plan document (if provided)
@@ -143,9 +145,16 @@ Assemble project.json from all gathered data:
     "glue_index": 38
   },
   "custom_gates": [],
-  "accent_color": "<derived from project_name — see below>"
+  "accent_color": "<derived from project_name — see below>",
+  "search": {
+    "embedding_model": "nomic-embed-text",
+    "embedding_dims": 768,
+    "ollama_url": "http://127.0.0.1:11434"
+  }
 }
 ```
+
+The `search` block is read by `scripts/embed.py` (embedding model, dims, Ollama URL). Keep `embedding_model` and `embedding_dims` consistent with the `vector(768)` column in `init.sql` — if you ever change the model, change the dims everywhere (init.sql, embed.py, mcp_relay, search.html, project.json).
 
 **Set canary_thresholds from the writer's genre.** The thresholds are genre-driven, not
 fixed. Resolve them in this precedence order (each later step overrides the earlier):
@@ -282,7 +291,10 @@ Write each file below. Read the corresponding template from the skills repo (the
    UI_PORT={{UI_PORT}}
    PROJECT_SLUG={{PROJECT_SLUG}}
    DOCKET_ENV={{PROJECT_PATH}}\.env
+   OLLAMA_URL=http://127.0.0.1:11434
+   EMBED_MODEL=nomic-embed-text
    ```
+   (`OLLAMA_URL` / `EMBED_MODEL` are read by `mcp-server/mcp_relay.py` for the `pg_search` tool; `embed.py` reads the same values from `project.json`'s `search` block.)
 3. `.gitignore`:
    ```
    .env
@@ -307,11 +319,13 @@ Write each file below. Read the corresponding template from the skills repo (the
 13. `nginx/html/dashboard.html` — from templates/nginx/html/dashboard.html (copy + placeholder substitution). Read-only live dashboard; CSS-bar chart for word count (no external Chart.js — fully offline).
 14. `nginx/html/notes-editor.html` — from templates/nginx/html/notes-editor.html (copy + placeholder substitution).
 15. `nginx/html/chapter-tracker.html` — from templates/nginx/html/chapter-tracker.html (copy + placeholder substitution).
+15b. `nginx/html/search.html` — from templates/nginx/html/search.html (copy + placeholder substitution). Built-in search page (full-text + semantic). Calls PostgREST RPC at `/api/rpc/search_fts` and `/api/rpc/search_semantic`, and Ollama at `/ollama/api/embeddings`; falls back to text search when Ollama is down.
 16. `nginx/html/faq.html` — from templates/nginx/html/faq.html (copy + placeholder substitution).
 17. `nginx/html/readme.html` — from templates/nginx/html/readme.html (copy + placeholder substitution).
 18. `mcp-server/mcp_relay.py` — from templates/mcp_relay.py.tmpl
 19. `scripts/word_count.py` — from templates/word_count.py
 19b. `scripts/canary.py` — from templates/canary.py (deterministic prose-metric scanner the QR workflow runs; no placeholder substitution)
+19c. `scripts/embed.py` — from templates/embed.py (builds the search_index: full-text rows + Ollama embeddings; no placeholder substitution — reads project.json + .env at runtime)
 20. `scripts/migrate.py` — from templates/migrate.py
 21. `bat-files/backup.bat` — from templates/backup.bat.tmpl
 22. `bat-files/restore.bat` — from templates/restore.bat.tmpl
@@ -326,7 +340,7 @@ Write each file below. Read the corresponding template from the skills repo (the
 30. `prompts/Close.md` — from templates/prompts/Close.md.tmpl
 31. If TTS enabled: `prompts/TTS-Prep.md` — from templates/prompts/TTS-Prep.md.tmpl
 
-The web UI files (docket.css + the 9 HTML pages above) are NOT written inline — copy each from `templates/nginx/html/*` and substitute the `{{PLACEHOLDER}}` variables, exactly the same way the other templated files are produced. They are functional vanilla JS pages that call PostgREST at /api/ and link `docket.css`; everything is offline/self-contained (no CDN, no external fonts/scripts). Honor the TTS include/strip markers in character-editor.html per item 10. Every page links `docket.css` and uses `var(--accent)` for its accent color (never a hardcoded hex), so the whole site picks up the name-derived theme. Page titles and header/brand text use `{{PROJECT_NAME}}` (and `{{AUTHOR}}` where an author line fits) — never genre labels and never any VoT / Vampires-of-Tucson wording.
+The web UI files (docket.css + the 10 HTML pages above, including search.html) are NOT written inline — copy each from `templates/nginx/html/*` and substitute the `{{PLACEHOLDER}}` variables, exactly the same way the other templated files are produced. They are functional vanilla JS pages that call PostgREST at /api/ and link `docket.css`; everything is offline/self-contained (no CDN, no external fonts/scripts). Honor the TTS include/strip markers in character-editor.html per item 10. Every page links `docket.css` and uses `var(--accent)` for its accent color (never a hardcoded hex), so the whole site picks up the name-derived theme. Page titles and header/brand text use `{{PROJECT_NAME}}` (and `{{AUTHOR}}` where an author line fits) — never genre labels and never any VoT / Vampires-of-Tucson wording.
 
 **Authoritative column reference for the HTML editors** — the inline CRUD pages MUST use exactly these columns (they match postgres/init.sql; do not invent `title`, `description`, `full_profile`, `resolved`, `chapter_number`, etc.):
 
@@ -420,9 +434,11 @@ Poll for health every 10 seconds, up to 3 minutes:
 docker compose ps
 ```
 
-Wait until postgres, postgrest, and nginx containers show status "running" or "healthy".
+Wait until postgres, postgrest, nginx, AND ollama containers show status "running" or "healthy".
 
 If Postgres takes more than 60 seconds, print reassurance: "Postgres is initializing (first run pulls the image and runs init.sql — this is normal)."
+
+The `ollama` container may take a little longer to report healthy on first run (image pull). Wait for it to reach "running"/"healthy" before the model-pull phase below. If it does not come up, do not abort the build — note that semantic search will be unavailable until Ollama is running; full-text search works regardless.
 
 ---
 
@@ -481,16 +497,20 @@ VALUES (
   'DELETE this row after adding a real location.'
 );
 
--- Example chapter (book name uses your project name)
+-- Example chapter (book name uses your project name).
+-- word_count is explicitly 0 and qr is left NULL: there is no manuscript yet, so the
+-- dashboard/index must read honestly (0 words, no QR). Do NOT seed a fake/demo word count
+-- or QR score — those numbers are computed from real prose by word_count.py and the QR flow.
 INSERT INTO {{SCHEMA}}.chapters
-  (book, chapter, part, status, summary, priority)
+  (book, chapter, part, status, summary, priority, word_count)
 VALUES (
   '{{BOOK_NAME}}',
   1,
   1,
   'concept',
   '[EXAMPLE] One paragraph: what happens in this chapter, whose POV, where it ends.',
-  'MED'
+  'MED',
+  0
 );
 
 -- Example note
@@ -508,6 +528,31 @@ After inserting example rows, insert real characters from the plan doc (if any w
 INSERT INTO {{SCHEMA}}.characters (name, role, age_or_era, notes, is_minor)
 VALUES ('<name>', '<role>', '<age_or_era_or_blank>', '<brief description from plan>', FALSE);
 ```
+
+---
+
+## Phase 9b — Pull embedding model + build search index
+
+This wires up search after the seed rows exist, so the index has content from the start.
+
+1. **Pull the embedding model** into the Ollama container (one-time, needs internet, ~300MB):
+   ```
+   docker exec {{PROJECT_SLUG}}-ollama ollama pull nomic-embed-text
+   ```
+   Wait for the pull to complete. If it fails (offline, or Ollama not up), do NOT abort:
+   print a warning — "Could not pull nomic-embed-text. Semantic search will be unavailable
+   until you run `docker exec {{PROJECT_SLUG}}-ollama ollama pull nomic-embed-text` and then
+   `python scripts/embed.py --full`. Full-text search works regardless." — and skip step 2.
+
+2. **Build the search index** over the seeded rows:
+   ```
+   python scripts/embed.py --full
+   ```
+   (Run from the project directory so it finds project.json + .env. It connects as the
+   editor role, upserts every entity into `{{SCHEMA}}.search_index`, and fills embeddings via
+   Ollama. If Ollama is down it still writes the FTS rows and leaves embeddings NULL.)
+
+Print the embed.py summary (rows indexed / embedded / skipped / ollama-down).
 
 ---
 
@@ -572,3 +617,23 @@ Register-ScheduledTask -TaskName "WritingDocket-{{PROJECT_SLUG}}-Backup" -Trigge
 ```
 
 Print the credentials summary (master password, editor password) and warn the user to save them — they are NOT stored in the project.json.
+
+## Phase 13 — Open the web UI
+
+After the summary, open the writer's browser to the running UI so they land on it
+immediately. Use the resolved port. On Windows, run via the Bash tool:
+
+```
+cmd /c start "" "http://127.0.0.1:{{UI_PORT}}/"
+```
+
+(The empty `""` is the required title argument for `start`; without it a quoted URL is
+treated as the window title and nothing opens.) If that fails for any reason, fall back to:
+
+```
+powershell -NoProfile -Command "Start-Process 'http://127.0.0.1:{{UI_PORT}}/'"
+```
+
+Then tell the writer: "Opening your writing system in the browser. If it didn't open,
+visit http://127.0.0.1:{{UI_PORT}}/ yourself." Do not block on this — a failure to launch
+the browser is not a build failure.

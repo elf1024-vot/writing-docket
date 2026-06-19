@@ -15,6 +15,7 @@
   <a href="chapter-editor.html">Chapters</a>
   <a href="location-editor.html">Locations</a>
   <a href="notes-editor.html">Notes</a>
+  <a href="search.html">Search</a>
   <a href="dashboard.html">Dashboard</a>
   <a href="chapter-tracker.html">Tracker</a>
   <a href="readme.html">README</a>
@@ -161,6 +162,17 @@
         <tr><td><span class="badge badge-ok">published</span></td><td>Released.</td></tr>
       </tbody>
     </table>
+  </section>
+
+  <section class="section">
+    <div class="section-title">16</div>
+    <h2>How does search work?</h2>
+    <p>Search is built in and on by default; open it from the <a href="search.html">Search</a> tab. It works two ways, both fully offline - nothing about your story ever leaves your machine:</p>
+    <ul class="section">
+      <li><strong>Text (full-text) search</strong> is always available. PostgreSQL indexes the title and body of every character, location, group, chapter, note, and chapter prose file the moment it is written, so keyword search just works - even if the embedding service is off.</li>
+      <li><strong>Semantic search</strong> finds content by meaning, not just exact words. A local <code>ollama</code> container running the <code>nomic-embed-text</code> model turns your query into a 768-number vector, and PostgreSQL (with the <code>pgvector</code> extension) returns the closest matches. The model is pulled once from the internet (~300MB) during setup; after that it runs entirely on your machine.</li>
+    </ul>
+    <p>The semantic index is built by <code>scripts/embed.py</code> (run automatically at build, and re-runnable any time you add content). If the Ollama container is not running, semantic search degrades gracefully: the Search page shows a banner and falls back to text search, which always works. No part of search requires the internet at runtime.</p>
   </section>
 
   <p><a class="btn" href="readme.html">Open the full README →</a></p>

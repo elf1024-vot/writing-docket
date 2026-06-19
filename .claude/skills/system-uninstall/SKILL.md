@@ -15,9 +15,10 @@ Load: project_name, project_slug, schema, project_path, ui_port.
 
 ```
 The following will be permanently deleted:
-  - Docker containers: {{PROJECT_SLUG}}-postgres, {{PROJECT_SLUG}}-postgrest, {{PROJECT_SLUG}}-nginx
-  - Docker images: postgres:16, postgrest/postgrest, nginx:alpine
+  - Docker containers: {{PROJECT_SLUG}}-postgres, {{PROJECT_SLUG}}-postgrest, {{PROJECT_SLUG}}-nginx, {{PROJECT_SLUG}}-ollama
+  - Docker images: pgvector/pgvector:pg16, postgrest/postgrest, nginx:alpine, ollama/ollama
   - Docker volume: {{PROJECT_SLUG}}_pgdata (ALL DATABASE DATA)
+  - Docker volume: {{PROJECT_SLUG}}_ollama (downloaded embedding model)
   - Infrastructure files: docker-compose.yml, postgres/, postgrest/, nginx/, mcp-server/, scripts/, bat-files/, prompts/
   - MCP registration: {{PROJECT_SLUG}} from Claude config
   - Windows Scheduled Task: WritingDocket-{{PROJECT_SLUG}}-Backup
@@ -41,7 +42,7 @@ Wait for input. If input does not match exactly, abort: "Confirmation did not ma
 
 Run in order:
 
-1. `docker compose down --rmi all -v` (from project directory)
+1. `docker compose down --rmi all -v` (from project directory) — this removes all four containers ({{PROJECT_SLUG}}-postgres, -postgrest, -nginx, -ollama), their images, and both named volumes ({{PROJECT_SLUG}}_pgdata and {{PROJECT_SLUG}}_ollama). If either volume lingers (e.g. compose file already deleted), remove it explicitly: `docker volume rm {{PROJECT_SLUG}}_pgdata {{PROJECT_SLUG}}_ollama`.
 2. Drop DB roles (connect as master user first time, then drop):
    - Read master password from .env
    - `docker exec {{PROJECT_SLUG}}-postgres psql -U {{MASTER_USER}} -c "DROP SCHEMA {{SCHEMA}} CASCADE;"` — but container is down, skip this; schema is in the volume which is deleted
