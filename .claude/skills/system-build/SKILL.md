@@ -42,6 +42,30 @@ written to the log — log the fact that .env was written, not its contents.
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+**Then, immediately, prepare the writer for approval prompts (in plain, calming words).**
+During setup Claude Code will ask permission before it runs steps on your computer — you'll
+see a small box with the command and a "Do you want to proceed?" question, sometimes with
+technical-sounding wording like "manual approval required." **This is normal and expected —
+it's Claude Code asking before it sets up your project, not an error and not a warning that
+anything is wrong.** Print something like:
+
+```
+Heads up: a few times during setup, a box will pop up asking permission to run a step
+(create your files, start the database, etc.). Some of these have technical wording -
+that's just Claude Code being careful. It's safe to choose "Yes" each time. If your box
+offers a "Yes, and don't ask again" option, that's the smoothest choice - it lets the
+rest of setup run without stopping to ask. I'll tell you what each step is doing as we go.
+```
+
+If the writer's permission mode offers an "allow for the session / don't ask again" choice,
+recommend it so the build isn't interrupted repeatedly. Never imply an approval prompt means
+something failed.
+
+**Keep your own commands simple so the prompts stay un-scary.** Prefer plain, single-purpose
+commands run from the project directory over compound `cd ... && ... > file` one-liners,
+which trigger the most alarming "path resolution bypass" approval text. Run one action at a
+time; it reads far better to a non-developer watching the prompts.
+
 ---
 
 ## Phase 0 — Pre-flight Checks

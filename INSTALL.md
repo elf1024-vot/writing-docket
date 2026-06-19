@@ -168,6 +168,13 @@ Then:
    The first run downloads Docker images, so this takes 5–15 minutes. That's normal.
 5. When it's done you'll see a **Setup Complete** banner with your web links.
 
+> **About those permission boxes.** A few times during setup, Claude Code will pop up a
+> small box showing a command and asking *"Do you want to proceed?"* — sometimes with
+> technical wording like *"manual approval required."* **This is normal. It's Claude Code
+> asking before it sets things up on your computer — not an error.** Choose **Yes** each
+> time. If the box offers a *"Yes, and don't ask again"* option, pick that and the rest of
+> setup runs without stopping to ask.
+
 ---
 
 ## Step 8 — Finish up
