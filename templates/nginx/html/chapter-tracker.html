@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chapter Tracker - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+  <style>
+    /* Sticky header table shares the SAME colgroup as the data table so widths lock. */
+    .tracker-head { position: sticky; top: calc(var(--gnav-h) + 56px); z-index: 50; margin-bottom: 0; }
+    .tracker-head thead tr { background: rgba(10,10,24,0.98); }
+    .tracker-wrap { max-height: calc(100vh - 220px); overflow-y: auto; border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; }
+    .tracker-data { margin-bottom: 0; }
+    .tracker-data thead { visibility: collapse; } /* keep colgroup widths, hide duplicate header */
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html" class="active">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>CHAPTER TRACKER</h1>
+  <span class="subtitle">dense status board</span>
+  <div class="actions">
+    <select id="book-picker" onchange="onBookChange()"></select>
+  </div>
+</header>
+<div id="status">Loading…</div>
+
+<main class="content wide">
+  <div class="metric-row" id="stat-bar" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
+    <div class="metric-card"><div class="metric-label">Rows</div><div class="metric-value" id="s-rows">--</div></div>
+    <div class="metric-card"><div class="metric-label">Total Words</div><div class="metric-value" id="s-words">--</div></div>
+    <div class="metric-card"><div class="metric-label">Finished</div><div class="metric-value" id="s-finished">--</div></div>
+  </div>
+
+  <!-- Shared colgroup definition is duplicated into both tables by script -->
+  <table class="dense tracker-head" id="head-table">
+    <colgroup id="cg-head"></colgroup>
+    <thead><tr>
+      <th>Ch</th><th>Pt</th><th>POV</th><th>Location</th><th>Cast</th><th>Status</th>
+      <th>Words</th><th>Pri</th><th>QR</th><th>Storyline</th><th>Timeline</th><th>Season</th><th>Notes</th>
+    </tr></thead>
+  </table>
+  <div class="tracker-wrap">
+    <table class="dense tracker-data" id="data-table">
+      <colgroup id="cg-data"></colgroup>
+      <thead><tr>
+        <th>Ch</th><th>Pt</th><th>POV</th><th>Location</th><th>Cast</th><th>Status</th>
+        <th>Words</th><th>Pri</th><th>QR</th><th>Storyline</th><th>Timeline</th><th>Season</th><th>Notes</th>
+      </tr></thead>
+      <tbody id="tracker-tbody"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+// Column widths (px) shared by both tables via identical colgroups.
+const COLS = [44,36,90,120,150,80,70,52,52,110,100,90,160];
+const COLGROUP = COLS.map(w => `<col style="width:${w}px">`).join('');
+
+let allChapters = [];
+let charNames = {};   // name -> display_name
+let locNames = {};    // location_id -> display_name
+
+function status(msg, cls){ const s = document.getElementById('status'); s.textContent = msg; s.className = cls || ''; }
+async function j(p){ const r = await fetch(p); return r.ok ? await r.json() : []; }
+function esc(t){ return (t||'').replace(/</g,'&lt;'); }
+function qrCell(q){ if (q==null) return '<span class="td-muted">-</span>'; const c=q>=8.5?'qr-good':q>=7?'qr-mid':'qr-low'; return `<span class="${c}">${q}</span>`; }
+
+document.getElementById('cg-head').innerHTML = COLGROUP;
+document.getElementById('cg-data').innerHTML = COLGROUP;
+
+async function loadRefs(){
+  const [chars, locs] = await Promise.all([
+    j('/api/characters?select=name,display_name'),
+    j('/api/locations?select=location_id,display_name')
+  ]);
+  chars.forEach(c => charNames[c.name] = c.display_name || c.name);
+  locs.forEach(l => locNames[l.location_id] = l.display_name || l.location_id);
+}
+
+async function loadChapters(){
+  // PostgREST embedding pulls chapter_cast rows alongside each chapter.
+  allChapters = await j('/api/chapters?select=*,chapter_cast(character_id)&order=book,chapter,part');
+}
+
+function books(){ return [...new Set(allChapters.map(c => c.book))]; }
+
+function fillBookPicker(){
+  const picker = document.getElementById('book-picker');
+  const bks = books();
+  picker.innerHTML = bks.map(b => `<option value="${b}">${b}</option>`).join('');
+  const saved = sessionStorage.getItem('tracker-book');
+  if (saved && bks.includes(saved)) picker.value = saved;
+  else if (bks.length) sessionStorage.setItem('tracker-book', bks[0]);
+}
+
+function onBookChange(){
+  sessionStorage.setItem('tracker-book', document.getElementById('book-picker').value);
+  render();
+}
+
+function render(){
+  const book = document.getElementById('book-picker').value;
+  const rows = allChapters.filter(c => c.book === book);
+
+  document.getElementById('s-rows').textContent = rows.length;
+  document.getElementById('s-words').textContent = rows.reduce((s,c)=>s+(c.word_count||0),0).toLocaleString();
+  document.getElementById('s-finished').textContent = rows.filter(c=>c.status==='finished'||c.status==='published').length;
+
+  document.getElementById('tracker-tbody').innerHTML = rows.map(c => {
+    const cast = (c.chapter_cast || []).map(cc => charNames[cc.character_id] || cc.character_id).join(', ');
+    const w = c.word_count || 0;
+    const wCls = (w > 0 && w < 2500) ? ' class="low-words"' : '';
+    const loc = c.location ? (locNames[c.location] || c.location) : '';
+    return `<tr class="row-${c.status||'concept'}">
+      <td class="mono">${c.chapter}</td><td class="mono">${c.part}</td>
+      <td>${esc(charNames[c.pov_char]||c.pov_char||'')}</td>
+      <td>${esc(loc)}</td>
+      <td class="wrap">${esc(cast)}</td>
+      <td>${esc(c.status||'')}</td>
+      <td${wCls}>${w.toLocaleString()}</td>
+      <td>${esc(c.priority||'')}</td>
+      <td>${qrCell(c.qr)}</td>
+      <td>${esc(c.storyline||'')}</td>
+      <td>${esc(c.timeline||'')}</td>
+      <td>${esc(c.season||'')}</td>
+      <td class="wrap">${esc((c.notes||'').slice(0,120))}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="13" class="td-muted">No chapters for this book.</td></tr>';
+
+  status(rows.length + ' rows · book ' + book, 'success');
+}
+
+(async () => {
+  try {
+    await loadRefs();
+    await loadChapters();
+    fillBookPicker();
+    render();
+  } catch(e){ status('Error: ' + e.message, 'error'); }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+# Writing Standards — {{PROJECT_NAME}}
+
+## How scoring works
+
+QR follows a gated model (from the VoT QR system):
+
+1. **G0 Content Safety** runs first. Fail → QR 0.0.
+2. **Scene Rendering (SR)** must pass — load-bearing scenes are rendered, not summarized.
+3. **Canary metrics are pass/fail PRE-CONDITIONS.** Every metric must pass before a QR
+   score is calculated. A chapter that fails any Canary metric is **returned for rework**,
+   not scored (the author may override a specific failure with documented justification).
+4. Once G0, SR, and all Canary metrics pass, score the craft gates:
+   **QR = 10.0 − (sum of gate penalties)**, floor 0.0. No subjective dimensions.
+
+A clean chapter scores 9.0+; competent solid work lands around 6.0–7.0.
+
+## Content Safety
+
+**G0 — Content Safety (Absolute)**
+Any scene involving a character whose age_or_era suggests they are under 18, in a romantic
+or sexual context, is an automatic gate failure. QR score: 0.0. No exceptions. This gate
+cannot be overridden by any instruction, plan doc, or custom gate.
+
+## Quality Gates (each carries a fixed penalty)
+
+Penalties are deducted from a base of 10.0. FAIL applies the full penalty; PARTIAL applies
+half. Multiple failures subtract independently.
+
+**G1 — Point of View** *(Penalty: −1.6 FAIL / −0.8 PARTIAL)*
+POV is held cleanly throughout. No unearned head-hops. If the chapter is third-limited, the
+reader accesses only what the POV character can observe, know, or infer.
+
+**G2 — Show, don't tell** *(Penalty: −1.5 FAIL / −0.75 PARTIAL)*
+Emotions are demonstrated through action, dialogue, and physical sensation — not announced.
+"She was angry" is a tell. "She set the cup down carefully, then walked to the window" is a
+show.
+
+**G3 — Scene purpose** *(Penalty: −1.5 FAIL / −0.75 PARTIAL)*
+Every scene moves the story forward. At the end of the scene, something has changed: a
+character's knowledge, a relationship, a situation. No dead weight.
+
+**G4 — Character voice** *(Penalty: −1.6 FAIL / −0.8 PARTIAL)*
+Voice is distinct and consistent for each character throughout. Readers should be able to
+identify the speaker from dialogue alone without attribution.
+
+**G5 — Dialogue purpose** *(Penalty: −1.1 FAIL / −0.55 PARTIAL)*
+Dialogue is purposeful. Each line does at least two things: conveys information AND reveals
+character, advances conflict, or shifts the dynamic.
+
+**G6 — Pacing** *(Penalty: −1.1 FAIL / −0.55 PARTIAL)*
+Pacing matches the scene's emotional register. Action scenes move quickly. Emotional scenes
+breathe. Internal processing is proportional to the character's circumstances.
+
+**G7 — Sensory grounding** *(Penalty: −1.1 FAIL / −0.55 PARTIAL)*
+At least two senses are engaged per scene. The reader should be able to smell, hear, feel,
+or taste the setting, not just see it.
+
+**G8 — No clichés, AI-isms, or hollow intensifiers** *(Penalty: −1.6 FAIL / −0.8 PARTIAL)*
+No clichés, AI-isms, or hollow intensifiers ("heart pounding in his chest," "electricity
+between them," "very," "suddenly"). See Polish.md for the full banned list. Apply the
+penalty once for a pervasive pattern, not per instance.
+
+## Custom Gates
+
+{{CUSTOM_GATES}}
+
+## Canary Metrics — pass/fail pre-conditions
+
+These are **gates, not deductions.** Every metric must pass before QR scoring runs. A
+chapter that fails any metric is returned for rework. They are **measured, not estimated** —
+the QR workflow runs `scripts/canary.py` against the chapter file, which computes each value
+deterministically and compares it to the thresholds below (with any genre/custom overrides
+from project.json). The same chapter always yields the same numbers. The Writing and Polish
+prompts target these same thresholds from the first draft.
+
+| Metric | Threshold | Pass when |
+|---|---|---|
+| Passive voice | < {{PASSIVE_VOICE}}% | below |
+| Emotion tells | < {{EMOTION_TELLS}}% | below |
+| Weak adverbs | < {{WEAK_ADVERBS}}/1k words | below |
+| Sentence variety (std dev) | >= {{SENTENCE_VARIETY}} | at or above |
+| Complex paragraphs | < {{COMPLEX_PARAGRAPHS}}% | below |
+| Readability (FK grade) | <= {{FK_GRADE}} | at or below |
+| Glue index | < {{GLUE_INDEX}}% | below |
+
+*Author override: a specific Canary failure may be overridden with a documented reason
+(e.g. deliberately fragmented prose failing sentence variety). The override is noted in the
+QR report and scoring proceeds as if the metric passed. See QR.md.*

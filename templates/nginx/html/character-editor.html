@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Characters - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html" class="active">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>CHARACTERS</h1>
+  <span class="subtitle">profiles, arcs &amp; prompts</span>
+  <div class="actions"><button class="primary" onclick="newCharacter()">+ New Character</button></div>
+</header>
+<div id="status">Loading…</div>
+
+<main class="content">
+  <div class="split">
+    <div class="list-pane" id="char-list"></div>
+
+    <div class="panel">
+      <form id="char-form" onsubmit="return false;">
+        <input type="hidden" id="orig-name">
+        <div class="form-grid">
+          <div class="field"><label>Name (PK)</label><input id="f-name" placeholder="internal key, unique"></div>
+          <div class="field"><label>Display Name</label><input id="f-display_name"></div>
+          <div class="field"><label>Role</label><input id="f-role"></div>
+          <div class="field"><label>Age or Era</label><input id="f-age_or_era"></div>
+          <div class="field full"><label>Background</label><textarea id="f-background"></textarea></div>
+          <div class="field full"><label>Arc</label><textarea id="f-arc"></textarea></div>
+          <div class="field full"><label>Dialogue Prompt</label><textarea id="f-dialogue_prompt"></textarea></div>
+          <div class="field full"><label>Image Prompt</label><textarea id="f-image_prompt"></textarea></div>
+          <!-- TTS_BLOCK_START -->
+          <div class="field full"><label>TTS Voice Prompt</label><textarea id="f-tts_voice_prompt"></textarea></div>
+          <div class="field"><label>TTS Voice ID</label><input id="f-tts_voice_id"></div>
+          <!-- TTS_BLOCK_END -->
+          <div class="field"><label>Profile Size (read-only)</label><input id="f-profile_size" readonly></div>
+          <div class="field full"><label>Notes</label><textarea id="f-notes"></textarea></div>
+        </div>
+        <div class="toolbar">
+          <button class="primary" onclick="saveCharacter()">Save</button>
+          <button onclick="clearForm()">Clear</button>
+          <span class="spacer"></span>
+          <button class="danger" onclick="deleteCharacter()">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = '/api/characters';
+let current = null;   // currently-selected original name, or null when creating
+
+function status(msg, cls){ const s = document.getElementById('status'); s.textContent = msg; s.className = cls || ''; }
+function val(id){ return document.getElementById(id).value.trim(); }
+function setVal(id, v){ const el = document.getElementById(id); if (el) el.value = v == null ? '' : v; }
+
+async function loadList(){
+  try {
+    const r = await fetch(API + '?select=name,display_name,role&order=name');
+    const rows = await r.json();
+    const list = document.getElementById('char-list');
+    list.innerHTML = rows.map(c => `
+      <div class="list-item" data-name="${encodeURIComponent(c.name)}" onclick="selectChar('${encodeURIComponent(c.name)}')">
+        <div>${c.display_name || c.name}</div>
+        <div class="li-sub">${c.role || ''}</div>
+      </div>`).join('') || '<div class="li-sub" style="padding:10px;">No characters yet.</div>';
+    status(rows.length + ' characters', 'success');
+  } catch(e){ status('Error loading: ' + e.message, 'error'); }
+}
+
+async function selectChar(enc){
+  const name = decodeURIComponent(enc);
+  try {
+    const r = await fetch(API + '?name=eq.' + encodeURIComponent(name));
+    const [c] = await r.json();
+    if (!c) return;
+    current = c.name;
+    document.getElementById('orig-name').value = c.name;
+    ['name','display_name','role','age_or_era','background','arc','dialogue_prompt','image_prompt','tts_voice_prompt','tts_voice_id','profile_size','notes']
+      .forEach(k => setVal('f-' + k, c[k]));
+    document.querySelectorAll('.list-item').forEach(el => el.classList.toggle('selected', el.dataset.name === enc));
+    status('Editing ' + (c.display_name || c.name));
+  } catch(e){ status('Error: ' + e.message, 'error'); }
+}
+
+function newCharacter(){ clearForm(); status('New character: fill in Name and Save'); document.getElementById('f-name').focus(); }
+function clearForm(){
+  current = null;
+  document.getElementById('char-form').reset();
+  document.getElementById('orig-name').value = '';
+  document.querySelectorAll('.list-item').forEach(el => el.classList.remove('selected'));
+}
+
+// Build the payload. is_minor is intentionally NOT included (DB enforces is_minor=FALSE).
+function payload(){
+  const p = {};
+  ['name','display_name','role','age_or_era','background','arc','dialogue_prompt','image_prompt','notes']
+    .forEach(k => { const v = val('f-' + k); p[k] = v === '' ? null : v; });
+  // TTS_PAYLOAD_START
+  ['tts_voice_prompt','tts_voice_id'].forEach(k => { const v = val('f-' + k); p[k] = v === '' ? null : v; });
+  // TTS_PAYLOAD_END
+  return p;
+}
+
+async function saveCharacter(){
+  const name = val('f-name');
+  if (!name){ status('Name is required', 'error'); return; }
+  const body = JSON.stringify(payload());
+  try {
+    let r;
+    if (current){
+      r = await fetch(API + '?name=eq.' + encodeURIComponent(current), {
+        method: 'PATCH', headers: {'Content-Type':'application/json','Prefer':'return=representation'}, body });
+    } else {
+      r = await fetch(API, {
+        method: 'POST', headers: {'Content-Type':'application/json','Prefer':'return=representation'}, body });
+    }
+    if (!r.ok){ status('Save failed: ' + (await r.text()), 'error'); return; }
+    current = name;
+    status('Saved ' + name, 'success');
+    await loadList();
+    selectChar(encodeURIComponent(name));
+  } catch(e){ status('Error: ' + e.message, 'error'); }
+}
+
+async function deleteCharacter(){
+  if (!current){ status('Nothing selected', 'error'); return; }
+  if (!confirm('Delete character "' + current + '"?')) return;
+  try {
+    const r = await fetch(API + '?name=eq.' + encodeURIComponent(current), { method: 'DELETE' });
+    if (!r.ok){ status('Delete failed: ' + (await r.text()), 'error'); return; }
+    status('Deleted ' + current, 'success');
+    clearForm();
+    await loadList();
+  } catch(e){ status('Error: ' + e.message, 'error'); }
+}
+
+loadList();
+</script>
+</body>
+</html>

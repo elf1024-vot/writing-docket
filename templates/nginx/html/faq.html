@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html" class="active">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>FAQ</h1>
+  <span class="subtitle">{{PROJECT_NAME}} &middot; {{GENRE}}</span>
+</header>
+
+<main class="content">
+
+  <section class="section">
+    <div class="section-title">01</div>
+    <h2>System Requirements</h2>
+    <p>Windows 10 version 2004 or newer (or Windows 11), with <strong>WSL2</strong> enabled and <strong>Docker Desktop</strong> installed and running. The stack (PostgreSQL, PostgREST, nginx) runs in Docker; the web UI is served at <code>http://localhost:{{UI_PORT}}</code>.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">02</div>
+    <h2>Getting Started - where to start?</h2>
+    <p>You can fill everything by hand in the editors, or hand Claude Code a plain list and let it scaffold the rows for you. Either way, build your world in dependency order so the pieces that reference each other resolve:</p>
+    <ol class="section">
+      <li><strong>Characters</strong> first: nothing depends on them, and everything else points at them.</li>
+      <li><strong>Locations</strong> next: also independent.</li>
+      <li><strong>Groups</strong>, which can name a leader (a character), so add them after characters.</li>
+      <li><strong>Book &amp; chapters</strong> last: chapters point at a POV character and a location.</li>
+    </ol>
+    <p>The fastest way to scaffold each is the helpers in Claude Code. You give plain, natural values: just names. The database already defines the keys and the links between tables, so Claude generates the ids and wires up the connections for you (a group's leader, a chapter's POV character). It does <em>not</em> write the descriptive content: backgrounds, descriptions, summaries are left blank for you to author in the editors:</p>
+    <table>
+      <thead><tr><th>To add…</th><th>Run in Claude Code</th><th>You just say…</th></tr></thead>
+      <tbody>
+        <tr><td>Characters</td><td><code>/novel-add-characters</code></td><td>Names (optionally a role)</td></tr>
+        <tr><td>Locations</td><td><code>/novel-add-locations</code></td><td>Place names</td></tr>
+        <tr><td>Groups / factions</td><td><code>/novel-add-group</code></td><td>Group names, optionally "led by [character]"</td></tr>
+        <tr><td>A book + blank chapters</td><td><code>/novel-add-book</code></td><td>Book name + how many chapters (optionally "Ch 1 is [character] at [place]")</td></tr>
+      </tbody>
+    </table>
+    <p>Each helper shows the rows it intends to create and asks for a yes first; if you name a leader or POV who isn't in the cast yet, it tells you so you can add them first; and re-running is safe (existing rows are skipped). The structure and the links are built for you; <strong>the writing is yours.</strong></p>
+    <p><strong>Prefer a spreadsheet?</strong> Your project folder has an <code>intake\</code> folder with four fill-in files: <code>characters.csv</code>, <code>locations.csv</code>, <code>groups.csv</code>, <code>chapters.csv</code>. Fill them in <strong>locally</strong> in Excel or LibreOffice (or Google Sheets if you prefer), delete the <code>[EXAMPLE]</code> row, save back as CSV, then run <code>/novel-import</code> in Claude Code. It builds and links everything the same way. See <code>intake\README.txt</code> for details.</p>
+    <div class="callout"><strong>Recommended: stay offline.</strong> The CSV files never leave your computer, so your story bible stays private and works with no internet. We recommend the local spreadsheet route over any cloud sync.</div>
+  </section>
+
+  <section class="section">
+    <div class="section-title">03</div>
+    <h2>What is the MCP?</h2>
+    <p>The MCP (Model Context Protocol) server is the relay that lets Claude read and write your project database directly through well-scoped tools, instead of you copy-pasting. It connects to the same PostgreSQL the web UI uses, so edits made by Claude and edits made in the editors stay in sync.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">04</div>
+    <h2>What are example rows?</h2>
+    <p>A fresh build seeds a couple of placeholder rows (an example character, location, and chapter) so the editors and dashboard render something on first run. Delete them once you start entering real content; they are only scaffolding.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">05</div>
+    <h2>Claude Code Setup</h2>
+    <p>Register this project's MCP server with Claude Code:</p>
+    <pre>claude mcp add {{PROJECT_SLUG}} python "{{PROJECT_PATH}}\mcp-server\mcp_relay.py"</pre>
+  </section>
+
+  <section class="section">
+    <div class="section-title">06</div>
+    <h2>What are Gates?</h2>
+    <p>Gates (G0-G8, plus any custom ones you add) are quality checks the QR assessment applies to a chapter. In plain English:</p>
+    <table>
+      <thead><tr><th>Gate</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>G0</td><td>Content safety (absolute): runs first; a failure forces a 0.0 score.</td></tr>
+        <tr><td>G1</td><td>Point of view is held cleanly, no unearned head-hops.</td></tr>
+        <tr><td>G2</td><td>Show, don't tell: emotion is demonstrated, not announced.</td></tr>
+        <tr><td>G3</td><td>Every scene has a purpose; something changes.</td></tr>
+        <tr><td>G4</td><td>Character voice is distinct and consistent.</td></tr>
+        <tr><td>G5</td><td>Dialogue is purposeful: each line does more than one job.</td></tr>
+        <tr><td>G6</td><td>Pacing matches the scene's emotional register.</td></tr>
+        <tr><td>G7</td><td>Sensory grounding: at least two senses engaged per scene.</td></tr>
+        <tr><td>G8</td><td>No clichés, AI-isms, or hollow intensifiers.</td></tr>
+      </tbody>
+    </table>
+    <p>Each gate carries a fixed penalty (G0 is the exception; it's absolute). Your own custom gates from the plan doc are added below these.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">07</div>
+    <h2>What is a QR score?</h2>
+    <p>QR (Quality Rating) is a 0-10 score for a chapter's craft. On the dashboard and tracker it is color-coded: <span class="qr-good">green ≥ 8.5</span>, <span class="qr-mid">yellow 7-8.4</span>, <span class="qr-low">red &lt; 7</span>. It is read-only in the editors; it is set by the QR assessment, not typed by hand.</p>
+    <p>Scoring is gated. First a <strong>Content Safety</strong> check and a <strong>Scene Rendering</strong> check must pass. Then the <strong>Canary metrics</strong> act as <em>pass/fail pre-conditions</em>: a script (<code>scripts/canary.py</code>) measures passive voice, emotion tells, weak adverbs, sentence variety, complex paragraphs, readability, and glue index against your genre's thresholds. If any metric fails, the chapter is <strong>returned for rework and no number is calculated</strong> until you fix it (you can override a specific metric with a documented reason). Only once everything passes are the <strong>craft gates</strong> (G1-G8) scored, each with a fixed penalty: <strong>QR = 10.0 minus the penalties</strong>. Because the metrics are computed, the same chapter always evaluates the same way; a change in the numbers is a real change in the prose, not the reviewer's mood.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">08</div>
+    <h2>How do I add a custom gate?</h2>
+    <p>Edit <code>prompts/Standards.md</code> and add your rule. The QR and Polish workflows read that file, so a new standard there becomes part of the gate checks automatically.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">09</div>
+    <h2>How do I back up?</h2>
+    <div class="callout danger"><strong>Back up often.</strong> Run <code>bat-files\backup.bat</code> to dump the database into <code>backups\</code>. Then copy <code>backups\</code> to a <strong>USB drive or external disk</strong>. Docker volumes live on one disk; if that disk dies, an on-disk backup dies with it.</div>
+  </section>
+
+  <section class="section">
+    <div class="section-title">10</div>
+    <h2>What does profile_size mean?</h2>
+    <p><code>profile_size</code> is a read-only measure of how fully a character is described (length of their combined profile fields). The dashboard shows it as an inline bar so you can spot thin characters at a glance.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">11</div>
+    <h2>Can I run multiple projects?</h2>
+    <p>Yes. Each project is its own folder with its own Docker stack, database, UI port, and MCP slug. Give each a distinct <code>{{UI_PORT}}</code> and MCP name so they do not collide.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">12</div>
+    <h2>How do I add a genre extension later?</h2>
+    <p>Run <code>/system-extend</code> to layer a genre extension onto an existing project (extra fields, prompts, or standards) without rebuilding.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">13</div>
+    <h2>How do I uninstall?</h2>
+    <p>Run <code>/system-uninstall</code>. Back up first; uninstalling removes the stack and its data.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">14</div>
+    <h2>Protect against hardware failure</h2>
+    <div class="callout warn"><strong>Keep a USB copy of <code>backups\</code>.</strong> The single most important habit: an off-machine copy of your backups means a dead disk costs you hardware, not your manuscript.</div>
+  </section>
+
+  <section class="section">
+    <div class="section-title">15</div>
+    <h2>Chapter statuses</h2>
+    <table>
+      <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-muted">concept</span></td><td>Idea / outline only.</td></tr>
+        <tr><td><span class="badge badge-warn">draft</span></td><td>First prose written.</td></tr>
+        <tr><td><span class="badge badge-info">polished</span></td><td>Revised and cleaned up.</td></tr>
+        <tr><td><span class="badge badge-ok">finished</span></td><td>Done; ready to publish.</td></tr>
+        <tr><td><span class="badge badge-ok">published</span></td><td>Released.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <p><a class="btn" href="readme.html">Open the full README →</a></p>
+  <p class="td-muted" style="text-align:center;margin-top:32px">Writing system by E.L. Frederick &middot; <a href="https://substack.com/@elfrederick" target="_blank" rel="noopener">Subscribe on Substack &rarr;</a></p>
+  <div class="version-stamp">{{PROJECT_NAME}} &middot; built {{BUILD_DATE}}</div>
+</main>
+</body>
+</html>

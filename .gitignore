@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Never commit a generated project's secrets if one is built inside the repo tree
+.env
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Scratch / staging used during template authoring
+templates/nginx/_reference/

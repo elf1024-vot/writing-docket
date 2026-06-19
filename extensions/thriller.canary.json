@@ -1,0 +1,9 @@
+{
+  "passive_voice": 8,
+  "emotion_tells": 8,
+  "weak_adverbs_per_1k": 4.0,
+  "sentence_variety_std_dev": 6.0,
+  "complex_paragraphs": 5,
+  "readability_fk_grade": 7,
+  "glue_index": 35
+}

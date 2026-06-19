@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: {{PROJECT_SLUG}}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - {{PROJECT_SLUG}}_pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgrest:
+    image: postgrest/postgrest
+    container_name: {{PROJECT_SLUG}}-postgrest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./postgrest/postgrest.conf:/etc/postgrest.conf:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    command: postgrest /etc/postgrest.conf
+    environment:
+      PGRST_DB_URI: postgres://${EDITOR_USER}:${EDITOR_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PGRST_DB_SCHEMA: ${PROJECT_SLUG}
+      PGRST_DB_ANON_ROLE: ${EDITOR_USER}
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_SERVER_PORT: "3000"
+
+  nginx:
+    image: nginx:alpine
+    container_name: {{PROJECT_SLUG}}-nginx
+    restart: unless-stopped
+    depends_on:
+      - postgrest
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:${UI_PORT}:80"
+
+volumes:
+  {{PROJECT_SLUG}}_pgdata:
+    driver: local

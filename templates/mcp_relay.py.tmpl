@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""
+MCP relay server for {{PROJECT_NAME}}
+Implements stdio JSON-RPC MCP protocol.
+Connects to Postgres as docket_claude (read-mostly, restricted write).
+"""
+
+import sys
+import json
+import os
+import logging
+from pathlib import Path
+
+# Load credentials from .env.
+# Default to the .env one level up from this script (<project>/.env); DOCKET_ENV
+# overrides (the build sets it in claude_desktop_config.json and the MCP registration).
+# Deriving the default from __file__ avoids embedding an absolute Windows path in a
+# Python string literal, where a substituted "C:\Users\..." would be an invalid
+# \U escape and break import. No {{PROJECT_PATH}} substitution happens in this file.
+_DEFAULT_ENV = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, ".env")
+_ENV_PATH = os.environ.get("DOCKET_ENV", _DEFAULT_ENV)
+
+def load_env(path: str) -> dict:
+    env = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip()
+    except FileNotFoundError:
+        logging.error(f"Could not find .env at {path}")
+    return env
+
+_env = load_env(_ENV_PATH)
+
+SCHEMA = _env.get("PROJECT_SLUG", "{{SCHEMA}}")
+CLAUDE_USER = _env.get("CLAUDE_USER", "docket_claude")
+CLAUDE_PASSWORD = _env.get("CLAUDE_PASSWORD", "")
+DB_HOST = "127.0.0.1"
+DB_PORT = 5432
+DB_NAME = _env.get("POSTGRES_DB", SCHEMA)
+
+# Whitelist for pg_write — only these patterns are allowed.
+# The synthesis-table entries are added by the build ONLY when synthesis_tracking=yes
+# (those tables don't exist otherwise). The build replaces the {{SYNTHESIS_WHITELIST}}
+# marker line below with either nothing (synthesis off) or the three synthesis entries.
+WRITE_WHITELIST = [
+    f"UPDATE {SCHEMA}.chapters",
+    f"INSERT INTO {SCHEMA}.notes",
+    f"UPDATE {SCHEMA}.notes",
+    # {{SYNTHESIS_WHITELIST}}
+]
+
+def get_connection():
+    try:
+        import psycopg2
+        return psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=CLAUDE_USER,
+            password=CLAUDE_PASSWORD
+        )
+    except ImportError:
+        raise RuntimeError("psycopg2 not installed. Run: pip install psycopg2-binary")
+
+def pg_read(sql: str) -> list:
+    """Execute a SELECT query and return rows as list of dicts."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            cols = [desc[0] for desc in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+def pg_write(sql: str) -> str:
+    """Execute an INSERT/UPDATE/DELETE on whitelisted tables only."""
+    sql_upper = sql.strip().upper()
+    allowed = False
+    for pattern in WRITE_WHITELIST:
+        if pattern.upper() in sql_upper:
+            allowed = True
+            break
+    if not allowed:
+        raise PermissionError(
+            f"pg_write: SQL does not match any whitelisted table/operation. "
+            f"Allowed operations: {WRITE_WHITELIST}"
+        )
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            rowcount = cur.rowcount
+        conn.commit()
+        return f"OK: {rowcount} row(s) affected"
+    finally:
+        conn.close()
+
+def pg_schema() -> dict:
+    """Return the schema description: tables and columns."""
+    sql = f"""
+        SELECT table_name, column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = '{SCHEMA}'
+        ORDER BY table_name, ordinal_position
+    """
+    rows = pg_read(sql)
+    schema = {}
+    for row in rows:
+        t = row["table_name"]
+        if t not in schema:
+            schema[t] = []
+        schema[t].append({
+            "column": row["column_name"],
+            "type": row["data_type"],
+            "nullable": row["is_nullable"]
+        })
+    return schema
+
+# MCP protocol implementation
+TOOLS = {
+    "pg_read": {
+        "name": "pg_read",
+        "description": f"Execute a SELECT SQL query against the {SCHEMA} schema. Returns rows as JSON array.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "SELECT SQL to execute"}
+            },
+            "required": ["sql"]
+        }
+    },
+    "pg_write": {
+        "name": "pg_write",
+        "description": f"Execute INSERT/UPDATE/DELETE on whitelisted tables only: chapters (word_count, qr, last_modified), notes, and the synthesis tables (character_state, open_threads, relationship_delta) when synthesis tracking is enabled.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "INSERT/UPDATE/DELETE SQL to execute"}
+            },
+            "required": ["sql"]
+        }
+    },
+    "pg_schema": {
+        "name": "pg_schema",
+        "description": f"Return the database schema for the {SCHEMA} project: all tables and their columns.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    }
+}
+
+def handle_request(req: dict) -> dict:
+    method = req.get("method")
+    params = req.get("params", {})
+    req_id = req.get("id")
+
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "{{PROJECT_SLUG}}-mcp", "version": "1.0.0"}
+            }
+        }
+
+    if method == "tools/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {"tools": list(TOOLS.values())}
+        }
+
+    if method == "tools/call":
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
+        try:
+            if tool_name == "pg_read":
+                result = pg_read(arguments["sql"])
+                content = json.dumps(result, default=str)
+            elif tool_name == "pg_write":
+                result = pg_write(arguments["sql"])
+                content = result
+            elif tool_name == "pg_schema":
+                result = pg_schema()
+                content = json.dumps(result, indent=2)
+            else:
+                raise ValueError(f"Unknown tool: {tool_name}")
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "content": [{"type": "text", "text": content}],
+                    "isError": False
+                }
+            }
+        except Exception as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "content": [{"type": "text", "text": f"Error: {str(e)}"}],
+                    "isError": True
+                }
+            }
+
+    if method == "notifications/initialized":
+        return None  # No response needed
+
+    return {
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "error": {"code": -32601, "message": f"Method not found: {method}"}
+    }
+
+def main():
+    logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+        except json.JSONDecodeError as e:
+            sys.stdout.write(json.dumps({
+                "jsonrpc": "2.0", "id": None,
+                "error": {"code": -32700, "message": f"Parse error: {e}"}
+            }) + "\n")
+            sys.stdout.flush()
+            continue
+        response = handle_request(req)
+        if response is not None:
+            sys.stdout.write(json.dumps(response) + "\n")
+            sys.stdout.flush()
+
+if __name__ == "__main__":
+    main()

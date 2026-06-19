@@ -1,0 +1,34 @@
+@echo off
+REM Writing Docket Restore — {{PROJECT_NAME}}
+REM Do NOT run this directly — use /system-restore in Claude Code.
+REM This file is called by /system-restore after confirmation.
+
+SET PROJECT_PATH={{PROJECT_PATH}}
+SET PROJECT_SLUG={{PROJECT_SLUG}}
+SET SCHEMA={{SCHEMA}}
+SET BACKUP_FILE=%1
+SET MANUSCRIPT_ZIP=%2
+
+IF "%BACKUP_FILE%"=="" (
+  echo Usage: restore.bat [db-backup.sql] [manuscripts.zip]
+  EXIT /B 1
+)
+
+echo Stopping PostgREST and Nginx...
+docker compose -f "%PROJECT_PATH%\docker-compose.yml" stop postgrest nginx
+
+echo Dropping and recreating schema...
+docker exec %PROJECT_SLUG%-postgres psql -U docket_master -d %SCHEMA% -c "DROP SCHEMA %SCHEMA% CASCADE; CREATE SCHEMA %SCHEMA%;"
+
+echo Restoring database from %BACKUP_FILE%...
+docker exec -i %PROJECT_SLUG%-postgres psql -U docket_master -d %SCHEMA% < "%PROJECT_PATH%\backups\%BACKUP_FILE%"
+
+IF NOT "%MANUSCRIPT_ZIP%"=="" (
+  echo Restoring manuscripts from %MANUSCRIPT_ZIP%...
+  powershell -Command "Expand-Archive -Path '%PROJECT_PATH%\backups\%MANUSCRIPT_ZIP%' -DestinationPath '%PROJECT_PATH%' -Force"
+)
+
+echo Restarting services...
+docker compose -f "%PROJECT_PATH%\docker-compose.yml" start postgrest nginx
+
+echo Restore complete.

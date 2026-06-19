@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>README - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html" class="active">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>{{PROJECT_NAME}}</h1>
+  <span class="subtitle">by {{AUTHOR}} &middot; {{GENRE}} &middot; built {{BUILD_DATE}}</span>
+</header>
+
+<main class="content">
+
+  <section class="section">
+    <p class="lead">{{PROJECT_NAME}} is a writing docket: a local PostgreSQL-backed workspace for tracking characters, locations, chapters, and notes, with a web UI and a Claude MCP relay over the same data.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Quick Start</div>
+    <h2>Run it</h2>
+    <ol class="section">
+      <li>Start Docker Desktop, then bring up the stack: <code>docker compose up -d</code> from <code>{{PROJECT_PATH}}</code>.</li>
+      <li>Open the editors at <code>http://localhost:{{UI_PORT}}</code>.</li>
+      <li>Fill in order: Locations → Characters → Chapters.</li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Claude</div>
+    <h2>MCP Registration</h2>
+    <pre>claude mcp add {{PROJECT_SLUG}} python "{{PROJECT_PATH}}\mcp-server\mcp_relay.py"</pre>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Layout</div>
+    <h2>Directory Structure</h2>
+    <pre>{{PROJECT_SLUG}}/
+├── docker-compose.yml
+├── postgres/        init.sql, data volume
+├── postgrest/       postgrest.conf
+├── nginx/           nginx.conf, html/ (this UI + docket.css)
+├── mcp-server/      mcp_relay.py
+├── scripts/         word_count.py, migrate.py
+├── bat-files/       backup.bat, restore.bat
+├── prompts/         Init, Writing, QR, Polish, Standards, ...
+├── Chapters/        manuscript files
+├── Notes/           working notes
+├── qr/              QR assessment outputs
+└── backups/         database dumps  (copy to USB!)</pre>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Workflow</div>
+    <h2>Chapter Status</h2>
+    <p><span class="badge badge-muted">concept</span> → <span class="badge badge-warn">draft</span> → <span class="badge badge-info">polished</span> → <span class="badge badge-ok">finished</span> → <span class="badge badge-ok">published</span></p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Word Count</div>
+    <h2>Running word_count.py</h2>
+    <p>Recompute word counts from your manuscript files into the database:</p>
+    <pre>python scripts\word_count.py</pre>
+    <p>It scans <code>Chapters/</code>, counts words, and updates the read-only <code>word_count</code> column for each chapter/part.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Cast</div>
+    <h2>Characters in this Project</h2>
+    <div id="char-list"><p class="td-muted">Loading characters…</p></div>
+  </section>
+
+  <section class="section">
+    <div class="callout danger"><strong>BACK UP TO USB.</strong> Run <code>bat-files\backup.bat</code> regularly and copy <code>backups\</code> to an external USB drive. Your manuscript lives in a Docker volume on one disk; an off-machine copy is your only protection against disk failure.</div>
+  </section>
+
+  <p><a class="btn" href="faq.html">Read the FAQ →</a> <a class="btn" href="index.html">All editors →</a></p>
+  <p class="td-muted" style="text-align:center;margin-top:32px">Writing system by E.L. Frederick &middot; <a href="https://substack.com/@elfrederick" target="_blank" rel="noopener">Subscribe on Substack &rarr;</a></p>
+  <div class="version-stamp">{{PROJECT_NAME}} &middot; {{AUTHOR}} &middot; built {{BUILD_DATE}}</div>
+</main>
+
+<script>
+(async () => {
+  try {
+    const r = await fetch('/api/characters?select=name,display_name,role&order=name');
+    const rows = r.ok ? await r.json() : [];
+    const el = document.getElementById('char-list');
+    if (!rows.length){ el.innerHTML = '<p class="td-muted">No characters yet.</p>'; return; }
+    el.innerHTML = '<table><thead><tr><th>Name</th><th>Role</th></tr></thead><tbody>' +
+      rows.map(c => `<tr><td>${(c.display_name||c.name).replace(/</g,'&lt;')}</td><td>${(c.role||'').replace(/</g,'&lt;')}</td></tr>`).join('') +
+      '</tbody></table>';
+  } catch(e){ document.getElementById('char-list').innerHTML = '<p class="td-muted">Could not load characters (' + e.message + ').</p>'; }
+})();
+</script>
+</body>
+</html>

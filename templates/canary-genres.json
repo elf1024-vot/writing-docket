@@ -1,0 +1,108 @@
+{
+  "_comment": "Per-genre Canary threshold profiles. The build skill picks the profile matching the writer's stated genre (Q3 in intake) and uses it as the project's canary_thresholds, overriding the generic baseline. Extension .canary.json files and any plan-doc 'Canary Overrides' are merged on top of the chosen genre profile. Genre keys are matched case-insensitively against the stated genre; see the synonyms map. Thresholds reflect the conventions of each genre, not arbitrary relaxations: lower is better for every metric except sentence_variety_std_dev (higher = more varied), which is why romance/literary/historical have a lower variety floor and thriller a higher one.",
+
+  "generic": {
+    "passive_voice": 12,
+    "emotion_tells": 10,
+    "weak_adverbs_per_1k": 6.0,
+    "sentence_variety_std_dev": 5.5,
+    "complex_paragraphs": 8,
+    "readability_fk_grade": 8,
+    "glue_index": 38
+  },
+  "romance": {
+    "passive_voice": 12,
+    "emotion_tells": 20,
+    "weak_adverbs_per_1k": 6.0,
+    "sentence_variety_std_dev": 5.0,
+    "complex_paragraphs": 10,
+    "readability_fk_grade": 7,
+    "glue_index": 38
+  },
+  "thriller": {
+    "passive_voice": 8,
+    "emotion_tells": 8,
+    "weak_adverbs_per_1k": 4.0,
+    "sentence_variety_std_dev": 6.0,
+    "complex_paragraphs": 5,
+    "readability_fk_grade": 7,
+    "glue_index": 35
+  },
+  "literary": {
+    "passive_voice": 15,
+    "emotion_tells": 12,
+    "weak_adverbs_per_1k": 8.0,
+    "sentence_variety_std_dev": 4.5,
+    "complex_paragraphs": 12,
+    "readability_fk_grade": 11,
+    "glue_index": 40
+  },
+  "mystery": {
+    "passive_voice": 12,
+    "emotion_tells": 10,
+    "weak_adverbs_per_1k": 6.0,
+    "sentence_variety_std_dev": 5.5,
+    "complex_paragraphs": 8,
+    "readability_fk_grade": 8,
+    "glue_index": 38
+  },
+  "scifi": {
+    "passive_voice": 12,
+    "emotion_tells": 8,
+    "weak_adverbs_per_1k": 6.0,
+    "sentence_variety_std_dev": 5.5,
+    "complex_paragraphs": 10,
+    "readability_fk_grade": 9,
+    "glue_index": 38
+  },
+  "fantasy": {
+    "passive_voice": 12,
+    "emotion_tells": 10,
+    "weak_adverbs_per_1k": 6.0,
+    "sentence_variety_std_dev": 5.5,
+    "complex_paragraphs": 10,
+    "readability_fk_grade": 9,
+    "glue_index": 38
+  },
+  "historical": {
+    "passive_voice": 15,
+    "emotion_tells": 10,
+    "weak_adverbs_per_1k": 6.0,
+    "sentence_variety_std_dev": 5.0,
+    "complex_paragraphs": 12,
+    "readability_fk_grade": 10,
+    "glue_index": 40
+  },
+  "horror": {
+    "passive_voice": 12,
+    "emotion_tells": 10,
+    "weak_adverbs_per_1k": 6.0,
+    "sentence_variety_std_dev": 5.5,
+    "complex_paragraphs": 10,
+    "readability_fk_grade": 9,
+    "glue_index": 38
+  },
+
+  "_synonyms": {
+    "science fiction": "scifi",
+    "sci-fi": "scifi",
+    "sf": "scifi",
+    "speculative": "scifi",
+    "epic fantasy": "fantasy",
+    "high fantasy": "fantasy",
+    "steampunk": "fantasy",
+    "urban fantasy": "fantasy",
+    "gothic": "horror",
+    "suspense": "thriller",
+    "crime": "thriller",
+    "detective": "mystery",
+    "cozy mystery": "mystery",
+    "literary fiction": "literary",
+    "upmarket": "literary",
+    "contemporary romance": "romance",
+    "historical fiction": "historical",
+    "general": "generic",
+    "general fiction": "generic",
+    "other": "generic"
+  }
+}

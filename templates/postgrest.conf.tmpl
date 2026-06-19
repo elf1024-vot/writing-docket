@@ -1,0 +1,9 @@
+db-uri = "postgres://{{EDITOR_USER}}:{{EDITOR_PASSWORD}}@postgres:5432/{{SCHEMA}}"
+db-schemas = "{{SCHEMA}}"
+db-anon-role = "{{EDITOR_USER}}"
+server-port = 3000
+server-host = "0.0.0.0"
+jwt-secret = "{{POSTGREST_JWT_SECRET}}"
+db-pool = 10
+db-pool-timeout = 10
+log-level = "warn"

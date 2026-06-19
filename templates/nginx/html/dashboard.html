@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html" class="active">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>DASHBOARD</h1>
+  <span class="subtitle">live project status</span>
+</header>
+<div id="status">Loading…</div>
+
+<main class="content wide">
+
+  <section class="section">
+    <div class="metric-row">
+      <div class="metric-card"><div class="metric-label">Total Words</div><div class="metric-value" id="m-words">--</div></div>
+      <div class="metric-card"><div class="metric-label">Chapters</div><div class="metric-value" id="m-chapters">--</div><div class="metric-sub" id="m-status-breakdown"></div></div>
+      <div class="metric-card"><div class="metric-label">Avg QR</div><div class="metric-value" id="m-qr">--</div></div>
+      <div class="metric-card"><div class="metric-label">Open HIGH Notes</div><div class="metric-value" id="m-high">--</div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header"><span class="section-label">Word Count per Chapter</span><div class="section-rule"></div></div>
+    <div class="panel"><ul class="bar-list" id="wc-bars"></ul></div>
+  </section>
+
+  <section class="section">
+    <div class="section-header"><span class="section-label">Chapter Progress</span><div class="section-rule"></div></div>
+    <table>
+      <thead><tr><th>Ch.Pt</th><th>Summary</th><th>POV</th><th>Words</th><th>Status</th><th>QR</th></tr></thead>
+      <tbody id="progress-tbody"></tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <div class="section-header"><span class="section-label">Character Coverage</span><div class="section-rule"></div></div>
+    <table>
+      <thead><tr><th>Name</th><th>Role</th><th>Dialogue</th><th>Image</th><th>Arc</th><th>Profile Size</th></tr></thead>
+      <tbody id="coverage-tbody"></tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <div class="section-header"><span class="section-label">Open Notes (HIGH + MED)</span><div class="section-rule"></div></div>
+    <div id="notes-panel"></div>
+  </section>
+
+</main>
+
+<script>
+function status(msg, cls){ const s = document.getElementById('status'); s.textContent = msg; s.className = cls || ''; }
+async function j(p){ const r = await fetch(p); return r.ok ? await r.json() : []; }
+function qrCell(q){ if (q == null) return '<span class="td-muted">-</span>'; const c = q>=8.5?'qr-good':q>=7?'qr-mid':'qr-low'; return `<span class="${c}">${q}</span>`; }
+function statusBadge(s){ const map={published:'ok',finished:'ok',polished:'info',draft:'warn',concept:'muted'}; return `<span class="badge badge-${map[s]||'muted'}">${s||''}</span>`; }
+function esc(t){ return (t||'').replace(/</g,'&lt;'); }
+
+(async () => {
+  try {
+    const [chapters, characters, notes] = await Promise.all([
+      j('/api/chapters?select=book,chapter,part,summary,pov_char,word_count,qr,status&order=book,chapter,part'),
+      j('/api/characters?select=name,role,dialogue_prompt,image_prompt,arc,profile_size&order=name'),
+      j('/api/notes?status=eq.open&select=note_id,scope,priority,body&order=priority.asc')
+    ]);
+
+    // Quick stats
+    const words = chapters.reduce((s,c)=>s+(c.word_count||0),0);
+    document.getElementById('m-words').textContent = words.toLocaleString();
+    document.getElementById('m-chapters').textContent = chapters.length;
+    const byStatus = {};
+    chapters.forEach(c => byStatus[c.status] = (byStatus[c.status]||0)+1);
+    document.getElementById('m-status-breakdown').textContent =
+      Object.entries(byStatus).map(([k,v]) => `${v} ${k}`).join(' · ');
+
+    const qrs = chapters.map(c=>c.qr).filter(q=>q!=null);
+    const avg = qrs.length ? (qrs.reduce((a,b)=>a+b,0)/qrs.length) : null;
+    const qEl = document.getElementById('m-qr');
+    if (avg==null){ qEl.textContent='-'; }
+    else { qEl.textContent = avg.toFixed(1); qEl.className = 'metric-value ' + (avg>=8.5?'sev-ok':avg>=7?'sev-warn':'sev-crit'); }
+
+    const high = notes.filter(n=>n.priority==='HIGH').length;
+    const hEl = document.getElementById('m-high');
+    hEl.textContent = high;
+    if (high>0) hEl.className = 'metric-value sev-crit';
+
+    // CSS bar chart: word count per chapter
+    const maxW = Math.max(1, ...chapters.map(c=>c.word_count||0));
+    document.getElementById('wc-bars').innerHTML = chapters.map(c => {
+      const w = c.word_count||0;
+      return `<li class="bar-item">
+        <span class="bar-name">Ch ${c.chapter}.${c.part}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:${(w/maxW*100).toFixed(1)}%"></span></span>
+        <span class="bar-count">${w.toLocaleString()}</span></li>`;
+    }).join('') || '<li class="td-muted">No chapters.</li>';
+
+    // Chapter progress table
+    document.getElementById('progress-tbody').innerHTML = chapters.map(c => `
+      <tr><td class="mono">${c.chapter}.${c.part}</td><td>${esc((c.summary||'').slice(0,80))}</td>
+      <td>${esc(c.pov_char||'')}</td><td>${(c.word_count||0).toLocaleString()}</td>
+      <td>${statusBadge(c.status)}</td><td>${qrCell(c.qr)}</td></tr>`).join('');
+
+    // Character coverage
+    const yn = v => v ? '<span class="sev-ok">✓</span>' : '<span class="td-muted">-</span>';
+    const maxP = Math.max(1, ...characters.map(c=>c.profile_size||0));
+    document.getElementById('coverage-tbody').innerHTML = characters.map(c => `
+      <tr><td>${esc(c.name)}</td><td>${esc(c.role||'')}</td>
+      <td>${yn(c.dialogue_prompt)}</td><td>${yn(c.image_prompt)}</td><td>${yn(c.arc)}</td>
+      <td><span class="minibar"><span style="width:${((c.profile_size||0)/maxP*100).toFixed(0)}%"></span></span>
+        <span class="td-muted">${c.profile_size||0}</span></td></tr>`).join('');
+
+    // Open notes HIGH+MED
+    const sev = { HIGH:'crit', MED:'warn' };
+    const shown = notes.filter(n => n.priority==='HIGH' || n.priority==='MED');
+    document.getElementById('notes-panel').innerHTML = shown.map(n => `
+      <div class="callout ${n.priority==='HIGH'?'danger':'info'} ${n.priority==='HIGH'?'note-high':''}">
+        <span class="badge badge-${sev[n.priority]}">${n.priority}</span>
+        <span class="badge badge-muted">${n.scope}</span>
+        ${esc((n.body||'').slice(0,160))}</div>`).join('') || '<p class="td-muted">No open HIGH/MED notes.</p>';
+
+    status('Updated ' + new Date().toLocaleString(), 'success');
+  } catch(e){ status('Error: ' + e.message, 'error'); }
+})();
+</script>
+</body>
+</html>

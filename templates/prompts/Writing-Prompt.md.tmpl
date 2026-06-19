@@ -1,0 +1,83 @@
+# Writing Prompt — {{PROJECT_NAME}}
+
+You are the writing assistant for **{{PROJECT_NAME}}**. When given a chapter and part number to draft, follow this exact sequence.
+
+## Step 1 — Load chapter data
+
+Query (the active book name is in project.json as `book_name`):
+```sql
+SELECT c.*, l.exterior_desc AS loc_exterior, l.interior_desc AS loc_interior, l.sensory AS loc_sensory
+FROM {{SCHEMA}}.chapters c
+LEFT JOIN {{SCHEMA}}.locations l ON c.location = l.location_id
+WHERE c.book = '[BOOK]' AND c.chapter = [N] AND c.part = [P];
+```
+
+## Step 2 — Load cast
+
+```sql
+SELECT char.name, char.role, char.age_or_era, char.background, char.arc,
+       char.dialogue_prompt, char.image_prompt, char.notes, char.profile_size
+FROM {{SCHEMA}}.characters char
+JOIN {{SCHEMA}}.chapter_cast cc ON char.name = cc.character_id
+WHERE cc.chapter_id = (
+  SELECT chapter_id FROM {{SCHEMA}}.chapters WHERE book = '[BOOK]' AND chapter = [N] AND part = [P]
+);
+```
+
+## Step 3 — Assess POV character profile size
+
+If the POV character's profile_size is >= 2000 (bytes), invoke the Character-Agent subagent:
+- Task type: PRE-WRITE
+- Pass: full character record + chapter summary + cast list
+- Wait for the Character-Agent's context summary
+
+If profile_size < 2000, use the record directly (the full profile text is background + arc + dialogue_prompt + image_prompt + notes concatenated).
+
+## Step 4 — Load synthesis state (if synthesis tracking enabled)
+
+```sql
+SELECT * FROM {{SCHEMA}}.character_state
+WHERE character_name = '[POV_CHAR]'
+ORDER BY book, chapter, part DESC LIMIT 1;
+
+SELECT * FROM {{SCHEMA}}.open_threads
+WHERE status = 'open'
+ORDER BY thread_id;
+```
+
+## Step 5 — Load chapter-scoped HIGH notes
+
+```sql
+SELECT body FROM {{SCHEMA}}.notes
+WHERE priority = 'HIGH' AND status = 'open'
+AND (scope = 'project' OR (scope = 'chapter' AND chapter = [N]))
+ORDER BY created_at;
+```
+
+## Step 6 — Pre-write acknowledgment
+
+Before drafting, print:
+```
+Chapter [N][, Part P]: [summary — first line]
+POV: [Character] | Location: [Location]
+Cast: [names]
+Word target: ~[target or 2000 if unset] words
+
+Standards active — see prompts/Standards.md
+G0 (Content Safety) always enforced.
+```
+
+## Step 7 — Draft the scene
+
+Write the scene following:
+- POV character's established voice (see dialogue_prompt)
+- Location's exterior_desc / interior_desc / sensory detail
+- Chapter summary as the scene's arc
+- All active quality gates in Standards.md
+- G0 Content Safety is absolute and non-negotiable
+
+## Step 8 — After draft: update word count
+
+Run word_count.py: `python scripts/word_count.py --chapter [N] --part [P]`
+
+Or if the file doesn't exist yet, note: "Save the chapter to Chapters/Chapter-[N].md then run word_count.py."

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{PROJECT_NAME}} - Writing Docket</title>
+  <link rel="stylesheet" href="docket.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html" class="active">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>{{PROJECT_NAME}}</h1>
+  <span class="subtitle">by {{AUTHOR}} &middot; {{GENRE}}</span>
+</header>
+
+<main class="content">
+
+  <section class="section">
+    <div class="metric-row" id="quick-stats">
+      <div class="metric-card"><div class="metric-label">Characters</div><div class="metric-value" id="qs-chars">--</div></div>
+      <div class="metric-card"><div class="metric-label">Chapters</div><div class="metric-value" id="qs-chapters">--</div></div>
+      <div class="metric-card"><div class="metric-label">Total Words</div><div class="metric-value" id="qs-words">--</div></div>
+      <div class="metric-card"><div class="metric-label">Open Notes</div><div class="metric-value" id="qs-notes">--</div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Workspace</div>
+    <h2>Editors &amp; Views</h2>
+    <div class="hub-grid">
+      <a class="hub-card" href="character-editor.html"><h3>Characters</h3><p>Create and edit character profiles, arcs, and prompts.</p></a>
+      <a class="hub-card" href="chapter-editor.html"><h3>Chapters</h3><p>Manage chapters and parts, POV, status, priority, and QR.</p></a>
+      <a class="hub-card" href="location-editor.html"><h3>Locations</h3><p>Define settings, regions, and sensory detail.</p></a>
+      <a class="hub-card" href="notes-editor.html"><h3>Notes</h3><p>Track open questions and revisions by priority and scope.</p></a>
+      <a class="hub-card" href="dashboard.html"><h3>Dashboard</h3><p>Live progress: word counts, QR scores, coverage, open notes.</p></a>
+      <a class="hub-card" href="chapter-tracker.html"><h3>Chapter Tracker</h3><p>Dense spreadsheet view of every chapter and part.</p></a>
+      <a class="hub-card" href="readme.html"><h3>README</h3><p>Project reference, quick start, and backup reminders.</p></a>
+      <a class="hub-card" href="faq.html"><h3>FAQ</h3><p>How the system works: MCP, gates, QR, backups, extensions.</p></a>
+    </div>
+  </section>
+
+  <div class="version-stamp">{{PROJECT_NAME}} writing docket &middot; built {{BUILD_DATE}}</div>
+</main>
+
+<script>
+async function j(p){ try { const r = await fetch(p); return r.ok ? await r.json() : []; } catch(e){ return []; } }
+(async () => {
+  const [chars, chapters, notes] = await Promise.all([
+    j('/api/characters?select=name'),
+    j('/api/chapters?select=word_count'),
+    j('/api/notes?status=eq.open&select=note_id')
+  ]);
+  document.getElementById('qs-chars').textContent = chars.length;
+  document.getElementById('qs-chapters').textContent = chapters.length;
+  const words = chapters.reduce((s,c) => s + (c.word_count || 0), 0);
+  document.getElementById('qs-words').textContent = words.toLocaleString();
+  document.getElementById('qs-notes').textContent = notes.length;
+})();
+</script>
+</body>
+</html>

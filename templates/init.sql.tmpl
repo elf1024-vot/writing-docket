@@ -1,0 +1,170 @@
+-- Writing Docket — {{PROJECT_NAME}}
+-- Schema: {{SCHEMA}}
+-- Generated: {{BUILD_DATE}}
+
+-- ─── Roles ───────────────────────────────────────────────────────────────────
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{MASTER_USER}}') THEN
+    CREATE ROLE {{MASTER_USER}} WITH LOGIN PASSWORD '{{MASTER_PASSWORD}}';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{EDITOR_USER}}') THEN
+    CREATE ROLE {{EDITOR_USER}} WITH LOGIN PASSWORD '{{EDITOR_PASSWORD}}';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{CLAUDE_USER}}') THEN
+    CREATE ROLE {{CLAUDE_USER}} WITH LOGIN PASSWORD '{{CLAUDE_PASSWORD}}';
+  END IF;
+END
+$$;
+
+-- ─── Schema ───────────────────────────────────────────────────────────────────
+
+CREATE SCHEMA IF NOT EXISTS {{SCHEMA}};
+
+GRANT USAGE ON SCHEMA {{SCHEMA}} TO {{MASTER_USER}}, {{EDITOR_USER}}, {{CLAUDE_USER}};
+
+-- ─── Characters ───────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.characters (
+  name              TEXT PRIMARY KEY,
+  display_name      TEXT,
+  role              TEXT,        -- protagonist / antagonist / ally / minor / narrator
+  age_or_era        TEXT,        -- "35", "mid-40s", "ancient", "immortal" — plain text only
+  is_minor          BOOLEAN NOT NULL DEFAULT FALSE,
+  background        TEXT,
+  arc               TEXT,
+  dialogue_prompt   TEXT,        -- how they speak: rhythm, vocabulary, accent, verbal tells
+  image_prompt      TEXT,        -- visual description for AI image generation
+  tts_voice_prompt  TEXT,        -- how they sound for TTS (pitch, timbre, pace, affect)
+  tts_voice_id      TEXT,        -- provider voice ID (OpenAI "coral", ElevenLabs ID, etc.)
+  profile_size      INTEGER DEFAULT 0,
+  notes             TEXT,
+  CONSTRAINT no_minors CHECK (is_minor = FALSE)
+);
+
+-- ─── Locations ────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.locations (
+  location_id    TEXT PRIMARY KEY,
+  display_name   TEXT,
+  type           TEXT,
+  region         TEXT,
+  exterior_desc  TEXT,
+  interior_desc  TEXT,
+  sensory        TEXT,
+  books_present  TEXT,
+  notes          TEXT
+);
+
+-- ─── Groups ───────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.groups (
+  group_id          TEXT PRIMARY KEY,
+  display_name      TEXT,
+  type              TEXT,        -- gang / guild / family / faction / crew / coven / house / order / etc.
+  territory_or_base TEXT,
+  leader            TEXT REFERENCES {{SCHEMA}}.characters(name),
+  purpose           TEXT,
+  membership_notes  TEXT,
+  notes             TEXT
+);
+
+-- ─── Character–Group membership ───────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.character_groups (
+  character_name  TEXT REFERENCES {{SCHEMA}}.characters(name) ON UPDATE CASCADE ON DELETE CASCADE,
+  group_id        TEXT REFERENCES {{SCHEMA}}.groups(group_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  role_in_group   TEXT,
+  notes           TEXT,
+  PRIMARY KEY (character_name, group_id)
+);
+
+-- ─── Chapters ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.chapters (
+  chapter_id    SERIAL UNIQUE,            -- surrogate key for chapter_cast FK
+  book          TEXT NOT NULL,
+  chapter       INTEGER NOT NULL,
+  part          INTEGER NOT NULL DEFAULT 1,
+  pov_char      TEXT REFERENCES {{SCHEMA}}.characters(name) ON UPDATE CASCADE,
+  location      TEXT REFERENCES {{SCHEMA}}.locations(location_id) ON UPDATE CASCADE,
+  "cast"        TEXT,
+  summary       TEXT,
+  word_count    INTEGER DEFAULT 0,
+  qr            REAL,
+  status        TEXT DEFAULT 'draft'
+                  CHECK (status IN ('concept','draft','polished','finished','published')),
+  priority      TEXT DEFAULT 'MED' CHECK (priority IN ('HIGH','MED','LOW')),
+  notes         TEXT,
+  storyline     TEXT,
+  timeline      TEXT,
+  season        TEXT,
+  last_modified TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (book, chapter, part)
+);
+
+-- ─── Chapter cast (per-scene character list) ──────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.chapter_cast (
+  chapter_id    INTEGER REFERENCES {{SCHEMA}}.chapters(chapter_id) ON DELETE CASCADE,
+  character_id  TEXT REFERENCES {{SCHEMA}}.characters(name) ON UPDATE CASCADE ON DELETE CASCADE,
+  PRIMARY KEY (chapter_id, character_id)
+);
+
+-- ─── Relationships ────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.relationships (
+  char_a            TEXT REFERENCES {{SCHEMA}}.characters(name) ON UPDATE CASCADE,
+  char_b            TEXT REFERENCES {{SCHEMA}}.characters(name) ON UPDATE CASCADE,
+  relationship_type TEXT,
+  trust_level       TEXT,
+  notes             TEXT,
+  PRIMARY KEY (char_a, char_b)
+);
+
+-- ─── Session Notes ────────────────────────────────────────────────────────────
+-- Priority TTL defaults (enforced by word_count.py cleanup pass):
+--   HIGH: no auto-expiry — writer must manually resolve or archive
+--   MED:  expires 30 days after creation
+--   LOW:  expires 7 days after creation
+
+CREATE TABLE IF NOT EXISTS {{SCHEMA}}.notes (
+  note_id        SERIAL PRIMARY KEY,
+  scope          TEXT NOT NULL DEFAULT 'project',  -- project / book / chapter / character / location / group
+  book           TEXT,
+  chapter        INTEGER,
+  part           INTEGER,
+  character_name TEXT REFERENCES {{SCHEMA}}.characters(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  location_id    TEXT REFERENCES {{SCHEMA}}.locations(location_id) ON UPDATE CASCADE ON DELETE SET NULL,
+  group_id       TEXT REFERENCES {{SCHEMA}}.groups(group_id) ON UPDATE CASCADE ON DELETE SET NULL,
+  priority       TEXT NOT NULL DEFAULT 'MED' CHECK (priority IN ('HIGH','MED','LOW')),
+  status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved','archived')),
+  body           TEXT NOT NULL,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  expires_at     TIMESTAMPTZ,
+  CONSTRAINT fk_chapter FOREIGN KEY (book, chapter, part)
+    REFERENCES {{SCHEMA}}.chapters(book, chapter, part) DEFERRABLE INITIALLY DEFERRED
+);
+
+-- ─── Synthesis tables (conditional — inserted by build skill when synthesis_tracking=yes) ──
+-- {{SYNTHESIS_TABLES}}
+
+-- ─── Grants: editor role ──────────────────────────────────────────────────────
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {{SCHEMA}} TO {{EDITOR_USER}};
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {{SCHEMA}} TO {{EDITOR_USER}};
+
+-- ─── Grants: claude role ──────────────────────────────────────────────────────
+
+GRANT SELECT ON ALL TABLES IN SCHEMA {{SCHEMA}} TO {{CLAUDE_USER}};
+GRANT UPDATE (word_count, qr, last_modified) ON {{SCHEMA}}.chapters TO {{CLAUDE_USER}};
+GRANT INSERT ON {{SCHEMA}}.notes TO {{CLAUDE_USER}};
+GRANT UPDATE ON {{SCHEMA}}.notes TO {{CLAUDE_USER}};
+GRANT USAGE, SELECT ON SEQUENCE {{SCHEMA}}.notes_note_id_seq TO {{CLAUDE_USER}};
+
+-- ─── Grants: master role ──────────────────────────────────────────────────────
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA {{SCHEMA}} TO {{MASTER_USER}};
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {{SCHEMA}} TO {{MASTER_USER}};
+GRANT ALL PRIVILEGES ON SCHEMA {{SCHEMA}} TO {{MASTER_USER}};

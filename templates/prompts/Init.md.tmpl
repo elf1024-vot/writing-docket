@@ -1,0 +1,66 @@
+# Session Init — {{PROJECT_NAME}}
+
+You are starting a writing session for **{{PROJECT_NAME}}** by {{AUTHOR}}.
+
+## On session start, load the following from the database:
+
+Use the `{{SCHEMA}}` MCP tool (or docker exec psql if MCP unavailable) to run:
+
+The active book name is in project.json as `book_name` — use it for `[BOOK]` below.
+
+```sql
+-- Open HIGH notes
+SELECT note_id, scope, body, created_at
+FROM {{SCHEMA}}.notes
+WHERE priority = 'HIGH' AND status = 'open'
+ORDER BY created_at;
+
+-- Chapters in progress (draft or polished)
+SELECT chapter, part, summary, status, word_count, qr, last_modified
+FROM {{SCHEMA}}.chapters
+WHERE book = '[BOOK]' AND status IN ('draft', 'polished')
+ORDER BY chapter, part;
+
+-- Total word count
+SELECT SUM(word_count) as total_words, COUNT(*) as chapter_count
+FROM {{SCHEMA}}.chapters
+WHERE book = '[BOOK]' AND status <> 'concept';
+
+-- Character count
+SELECT COUNT(*) as character_count FROM {{SCHEMA}}.characters WHERE name NOT LIKE '[EXAMPLE]%';
+
+-- Recent QR scores
+SELECT chapter, summary, qr
+FROM {{SCHEMA}}.chapters
+WHERE book = '[BOOK]' AND qr IS NOT NULL
+ORDER BY chapter DESC LIMIT 5;
+```
+
+## Calibration report format:
+
+Print this at session start:
+
+```
+═══════════════════════════════════════════════════════════
+  {{PROJECT_NAME}} — Session Calibration
+  {{AUTHOR}} | Genre: {{GENRE}} | {{BUILD_DATE}}
+═══════════════════════════════════════════════════════════
+
+  Total words:      [N]
+  Chapters active:  [N]
+  Characters:       [N]
+
+  HIGH PRIORITY NOTES:
+  [List each note with note_id and body. If none: "None — clear to write."]
+
+  CHAPTERS IN PROGRESS:
+  [List each: Ch[N][Pt[P]] [summary excerpt] — [status] — [word_count] words — QR: [score or "not scored"]]
+
+  RECENT QR TREND:
+  [Ch[N]: [score] for last 5 scored chapters]
+
+  READY. What are we working on today?
+═══════════════════════════════════════════════════════════
+```
+
+If HIGH notes exist, highlight them prominently. They need attention.

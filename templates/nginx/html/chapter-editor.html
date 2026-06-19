@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chapters - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html" class="active">Chapters</a>
+  <a href="location-editor.html">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>CHAPTERS</h1>
+  <span class="subtitle">{{BOOK_NAME}}</span>
+  <div class="actions">
+    <button class="primary" onclick="newChapter()">+ New Chapter</button>
+    <button onclick="addPart()">+ Add Part</button>
+  </div>
+</header>
+<div id="status">Loading…</div>
+
+<main class="content">
+  <div class="split">
+    <div class="list-pane" id="ch-list"></div>
+
+    <div class="panel">
+      <form id="ch-form" onsubmit="return false;">
+        <input type="hidden" id="orig-book"><input type="hidden" id="orig-chapter"><input type="hidden" id="orig-part">
+        <div class="form-grid">
+          <div class="field"><label>Book</label><input id="f-book"></div>
+          <div class="field"><label>Chapter</label><input id="f-chapter" type="number"></div>
+          <div class="field"><label>Part</label><input id="f-part" type="number"></div>
+          <div class="field"><label>POV Character</label><select id="f-pov_char"></select></div>
+          <div class="field"><label>Location</label><select id="f-location"></select></div>
+          <div class="field"><label>Status</label>
+            <select id="f-status">
+              <option value="concept">concept</option><option value="draft">draft</option>
+              <option value="polished">polished</option><option value="finished">finished</option>
+              <option value="published">published</option>
+            </select></div>
+          <div class="field"><label>Priority</label>
+            <select id="f-priority"><option value="HIGH">HIGH</option><option value="MED">MED</option><option value="LOW">LOW</option></select></div>
+          <div class="field"><label>Word Count (read-only)</label><input id="f-word_count" readonly></div>
+          <div class="field"><label>QR (read-only)</label><input id="f-qr" readonly></div>
+          <div class="field"><label>Storyline</label><input id="f-storyline"></div>
+          <div class="field"><label>Timeline</label><input id="f-timeline"></div>
+          <div class="field"><label>Season</label><input id="f-season"></div>
+          <div class="field full"><label>Cast</label><input id="f-cast" placeholder="freeform cast list"></div>
+          <div class="field full"><label>Summary</label><textarea id="f-summary"></textarea></div>
+          <div class="field full"><label>Notes</label><textarea id="f-notes"></textarea></div>
+        </div>
+        <div class="toolbar">
+          <button class="primary" onclick="saveChapter()">Save</button>
+          <button onclick="clearForm()">Clear</button>
+          <span class="spacer"></span>
+          <button class="danger" onclick="deleteChapter()">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = '/api/chapters';
+let current = null;   // {book, chapter, part} of selected row, or null when creating
+
+function status(msg, cls){ const s = document.getElementById('status'); s.textContent = msg; s.className = cls || ''; }
+function val(id){ return document.getElementById(id).value.trim(); }
+function setVal(id, v){ const el = document.getElementById(id); if (el) el.value = v == null ? '' : v; }
+function qrClass(q){ if (q == null) return ''; if (q >= 8.5) return 'qr-good'; if (q >= 7) return 'qr-mid'; return 'qr-low'; }
+
+async function j(p){ const r = await fetch(p); return r.ok ? await r.json() : []; }
+
+async function loadDropdowns(){
+  const [chars, locs] = await Promise.all([
+    j('/api/characters?select=name,display_name&order=name'),
+    j('/api/locations?select=location_id,display_name&order=display_name')
+  ]);
+  document.getElementById('f-pov_char').innerHTML =
+    '<option value=""></option>' + chars.map(c => `<option value="${c.name}">${c.display_name || c.name}</option>`).join('');
+  document.getElementById('f-location').innerHTML =
+    '<option value=""></option>' + locs.map(l => `<option value="${l.location_id}">${l.display_name || l.location_id}</option>`).join('');
+}
+
+async function loadList(){
+  try {
+    const rows = await j(API + '?select=book,chapter,part,summary,status,qr&order=book,chapter,part');
+    const list = document.getElementById('ch-list');
+    list.innerHTML = rows.map(c => {
+      const key = `${encodeURIComponent(c.book)}|${c.chapter}|${c.part}`;
+      const sub = (c.summary || '').slice(0, 48);
+      return `<div class="list-item" data-key="${key}" onclick="selectCh('${key}')">
+        <div>Ch ${c.chapter}.${c.part} <span class="badge badge-muted">${c.status||''}</span></div>
+        <div class="li-sub">${c.book} &middot; ${sub}</div></div>`;
+    }).join('') || '<div class="li-sub" style="padding:10px;">No chapters yet.</div>';
+    status(rows.length + ' chapter rows', 'success');
+  } catch(e){ status('Error loading: ' + e.message, 'error'); }
+}
+
+function rowQuery(k){ return `?book=eq.${encodeURIComponent(k.book)}&chapter=eq.${k.chapter}&part=eq.${k.part}`; }
+
+async function selectCh(key){
+  const [b, ch, pt] = key.split('|');
+  const k = { book: decodeURIComponent(b), chapter: +ch, part: +pt };
+  const [c] = await j(API + rowQuery(k));
+  if (!c) return;
+  current = { book: c.book, chapter: c.chapter, part: c.part };
+  document.getElementById('orig-book').value = c.book;
+  document.getElementById('orig-chapter').value = c.chapter;
+  document.getElementById('orig-part').value = c.part;
+  ['book','chapter','part','pov_char','location','cast','summary','status','priority','word_count','qr','storyline','timeline','season','notes']
+    .forEach(f => setVal('f-' + f, c[f]));
+  document.querySelectorAll('.list-item').forEach(el => el.classList.toggle('selected', el.dataset.key === key));
+  status('Editing Ch ' + c.chapter + '.' + c.part + (c.qr != null ? '  (QR ' + c.qr + ')' : ''));
+}
+
+function clearForm(){
+  current = null;
+  document.getElementById('ch-form').reset();
+  ['orig-book','orig-chapter','orig-part'].forEach(id => document.getElementById(id).value = '');
+  document.querySelectorAll('.list-item').forEach(el => el.classList.remove('selected'));
+}
+
+// "+ New Chapter": max(chapter) for current book + 1, part 1, status concept.
+async function newChapter(){
+  const book = val('f-book') || '{{BOOK_NAME}}';
+  const rows = await j(API + `?book=eq.${encodeURIComponent(book)}&select=chapter&order=chapter.desc&limit=1`);
+  const next = (rows.length ? rows[0].chapter : 0) + 1;
+  clearForm();
+  setVal('f-book', book); setVal('f-chapter', next); setVal('f-part', 1);
+  document.getElementById('f-status').value = 'concept';
+  status('New chapter ' + next + ' (book ' + book + '): Save to create');
+}
+
+// "+ Add Part": sibling row on the open chapter, part = max_part + 1.
+async function addPart(){
+  const book = val('f-book'); const chapter = val('f-chapter');
+  if (!book || !chapter){ status('Open or fill a chapter first', 'error'); return; }
+  const rows = await j(API + `?book=eq.${encodeURIComponent(book)}&chapter=eq.${chapter}&select=part&order=part.desc&limit=1`);
+  const nextPart = (rows.length ? rows[0].part : 0) + 1;
+  clearForm();
+  setVal('f-book', book); setVal('f-chapter', chapter); setVal('f-part', nextPart);
+  document.getElementById('f-status').value = 'concept';
+  status('New part ' + nextPart + ' of chapter ' + chapter + ': Save to create');
+}
+
+// Editable columns only: word_count / qr / last_modified are read-only / DB-managed.
+function payload(){
+  const p = {
+    book: val('f-book'), chapter: +val('f-chapter'), part: +val('f-part'),
+    status: val('f-status'), priority: val('f-priority')
+  };
+  ['pov_char','location','cast','summary','storyline','timeline','season','notes']
+    .forEach(k => { const v = val('f-' + k); p[k] = v === '' ? null : v; });
+  return p;
+}
+
+async function saveChapter(){
+  if (!val('f-book') || !val('f-chapter') || !val('f-part')){ status('Book, chapter, part required', 'error'); return; }
+  const body = JSON.stringify(payload());
+  try {
+    let r;
+    if (current){
+      r = await fetch(API + rowQuery(current), {
+        method: 'PATCH', headers: {'Content-Type':'application/json','Prefer':'return=representation'}, body });
+    } else {
+      r = await fetch(API, {
+        method: 'POST', headers: {'Content-Type':'application/json','Prefer':'return=representation'}, body });
+    }
+    if (!r.ok){ status('Save failed: ' + (await r.text()), 'error'); return; }
+    current = { book: val('f-book'), chapter: +val('f-chapter'), part: +val('f-part') };
+    status('Saved Ch ' + current.chapter + '.' + current.part, 'success');
+    await loadList();
+    selectCh(`${encodeURIComponent(current.book)}|${current.chapter}|${current.part}`);
+  } catch(e){ status('Error: ' + e.message, 'error'); }
+}
+
+async function deleteChapter(){
+  if (!current){ status('Nothing selected', 'error'); return; }
+  if (!confirm(`Delete Ch ${current.chapter}.${current.part} (${current.book})?`)) return;
+  const r = await fetch(API + rowQuery(current), { method: 'DELETE' });
+  if (!r.ok){ status('Delete failed: ' + (await r.text()), 'error'); return; }
+  status('Deleted', 'success'); clearForm(); await loadList();
+}
+
+(async () => { await loadDropdowns(); await loadList(); })();
+</script>
+</body>
+</html>

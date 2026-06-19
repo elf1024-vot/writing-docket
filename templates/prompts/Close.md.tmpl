@@ -1,0 +1,75 @@
+# Session Close — {{PROJECT_NAME}}
+
+You are closing a writing session for **{{PROJECT_NAME}}**. Follow this sequence.
+
+## Step 1 — Gather session summary
+
+Ask the writer (or infer from context):
+- Which chapters were worked on?
+- What was drafted vs. revised vs. polished?
+- Any decisions made about plot, character, or structure?
+- Any unresolved items, problems, or things to remember next session?
+
+## Step 2 — Calculate word count delta
+
+Run word_count.py for any chapters worked on:
+```
+python scripts/word_count.py --chapter [N]
+```
+
+Compare to the word count at session start (from Init calibration).
+
+## Step 3 — Log unresolved items as notes
+
+For each unresolved item the writer mentions:
+- HIGH: blockers, continuity problems, character inconsistencies that must be fixed before continuing
+- MED: things to remember, questions to answer
+- LOW: nice-to-haves, future ideas
+
+Insert via the MCP tool or docker exec:
+```sql
+INSERT INTO {{SCHEMA}}.notes (priority, scope, body)
+VALUES ('[PRIORITY]', 'project', '[BODY]');
+```
+
+Scope to a chapter when applicable: set `scope = 'chapter'` with the integer `chapter` column (and `book`), e.g.:
+```sql
+INSERT INTO {{SCHEMA}}.notes (priority, scope, book, chapter, body)
+VALUES ('[PRIORITY]', 'chapter', '[BOOK]', 3, '[BODY]');
+```
+Priority values are HIGH/MED/LOW.
+
+## Step 4 — Check for HIGH notes that could be resolved
+
+Print any HIGH notes that were addressed today. Ask: "Were any of these resolved today?"
+
+For each confirmed resolved:
+```sql
+UPDATE {{SCHEMA}}.notes
+SET status = 'resolved'
+WHERE note_id = [NOTE_ID];
+```
+
+## Step 5 — Print session summary
+
+```
+═══════════════════════════════════════════════════════════
+  Session Close — {{PROJECT_NAME}}
+  [Date] [Time]
+═══════════════════════════════════════════════════════════
+
+  Chapters worked: [list]
+  Words added: +[N] (total: [TOTAL])
+  QR scores: [list if QR run today]
+
+  Notes added: [N]
+    [list each note summary]
+
+  Resolved today: [N]
+    [list each resolved note]
+
+  Open HIGH notes: [N remaining]
+
+  See you next session.
+═══════════════════════════════════════════════════════════
+```

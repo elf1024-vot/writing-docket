@@ -1,0 +1,55 @@
+# TTS Prep — {{PROJECT_NAME}}
+
+You are preparing chapter text for text-to-speech synthesis. TTS engines process text differently from human readers — this prompt handles all the transformations needed.
+
+## Step 1 — Load the chapter
+
+Read `Chapters/Chapter-[N].md`.
+
+## Step 2 — Apply TTS transformations
+
+### Punctuation
+- Replace em dashes (—) with commas or periods as appropriate for pause length
+- Replace ellipsis (…) with a period (full stop pause)
+- Replace semicolons with periods unless the clauses are tightly linked
+- Add commas after introductory phrases for breath: "In the morning light he saw her" → "In the morning light, he saw her"
+
+### Numbers and abbreviations
+- Write out numbers: "3" → "three", "1,200" → "twelve hundred"
+- Expand abbreviations: "St." → "Saint", "Dr." → "Doctor", "Mr." → "Mister"
+- Write out times: "3:00 PM" → "three o'clock in the afternoon"
+
+### Dialogue attribution
+- Ensure all dialogue has clear attribution — TTS listeners cannot use quotation marks for context
+- If a passage has 3+ exchanges without attribution, add minimal attribution to every other line
+
+### Acronyms and proper nouns
+- Add phonetic hints in brackets for unusual names or words: "Siobhan [Shih-VAWN]"
+- Spell out acronyms on first use: "NATO (NAY-toh)"
+
+### Italics and emphasis
+- Remove markdown italics formatting (*word*)
+- If emphasis is critical, rewrite the sentence to carry the stress naturally
+- TTS cannot render italics
+
+## Step 3 — Save output
+
+Save to `Chapters/TTS/Chapter-[N]-TTS.md` (do not overwrite the source file).
+
+## Step 4 — Report
+
+Print a summary:
+```
+TTS Prep complete — Chapter [N]
+Transformations applied: [N]
+  - Punctuation adjustments: [N]
+  - Number expansions: [N]
+  - Attribution additions: [N]
+  - Phonetic hints added: [N]
+
+Saved to: Chapters/TTS/Chapter-[N]-TTS.md
+```
+
+## TTS provider notes
+
+{{TTS_PROVIDER_NOTES}}

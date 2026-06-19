@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Locations - {{PROJECT_NAME}}</title>
+  <link rel="stylesheet" href="docket.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="topnav-brand" href="index.html">{{PROJECT_NAME}}</a>
+  <a href="index.html">Home</a>
+  <a href="character-editor.html">Characters</a>
+  <a href="chapter-editor.html">Chapters</a>
+  <a href="location-editor.html" class="active">Locations</a>
+  <a href="notes-editor.html">Notes</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="chapter-tracker.html">Tracker</a>
+  <a href="readme.html">README</a>
+  <a href="faq.html">FAQ</a>
+</nav>
+
+<header class="page-header">
+  <h1>LOCATIONS</h1>
+  <span class="subtitle">settings &amp; sensory detail</span>
+  <div class="actions"><button class="primary" onclick="newLocation()">+ New Location</button></div>
+</header>
+<div id="status">Loading…</div>
+
+<main class="content">
+  <div class="split">
+    <div class="list-pane" id="loc-list"></div>
+
+    <div class="panel">
+      <form id="loc-form" onsubmit="return false;">
+        <input type="hidden" id="orig-id">
+        <div class="form-grid">
+          <div class="field"><label>Location ID (PK)</label><input id="f-location_id" placeholder="unique key"></div>
+          <div class="field"><label>Display Name</label><input id="f-display_name"></div>
+          <div class="field"><label>Type</label><input id="f-type"></div>
+          <div class="field"><label>Region</label><input id="f-region"></div>
+          <div class="field full"><label>Exterior Description</label><textarea id="f-exterior_desc"></textarea></div>
+          <div class="field full"><label>Interior Description</label><textarea id="f-interior_desc"></textarea></div>
+          <div class="field full"><label>Sensory</label><textarea id="f-sensory"></textarea></div>
+          <div class="field full"><label>Books Present</label><input id="f-books_present"></div>
+          <div class="field full"><label>Notes</label><textarea id="f-notes"></textarea></div>
+        </div>
+        <div class="toolbar">
+          <button class="primary" onclick="saveLocation()">Save</button>
+          <button onclick="clearForm()">Clear</button>
+          <span class="spacer"></span>
+          <button class="danger" onclick="deleteLocation()">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = '/api/locations';
+let current = null;
+
+function status(msg, cls){ const s = document.getElementById('status'); s.textContent = msg; s.className = cls || ''; }
+function val(id){ return document.getElementById(id).value.trim(); }
+function setVal(id, v){ const el = document.getElementById(id); if (el) el.value = v == null ? '' : v; }
+async function j(p){ const r = await fetch(p); return r.ok ? await r.json() : []; }
+
+const FIELDS = ['location_id','display_name','type','region','exterior_desc','interior_desc','sensory','books_present','notes'];
+
+async function loadList(){
+  try {
+    const rows = await j(API + '?select=location_id,display_name,type&order=display_name');
+    const list = document.getElementById('loc-list');
+    list.innerHTML = rows.map(l => {
+      const k = encodeURIComponent(l.location_id);
+      return `<div class="list-item" data-id="${k}" onclick="selectLoc('${k}')">
+        <div>${l.display_name || l.location_id}</div>
+        <div class="li-sub">${l.type || ''}</div></div>`;
+    }).join('') || '<div class="li-sub" style="padding:10px;">No locations yet.</div>';
+    status(rows.length + ' locations', 'success');
+  } catch(e){ status('Error loading: ' + e.message, 'error'); }
+}
+
+async function selectLoc(enc){
+  const id = decodeURIComponent(enc);
+  const [l] = await j(API + '?location_id=eq.' + encodeURIComponent(id));
+  if (!l) return;
+  current = l.location_id;
+  document.getElementById('orig-id').value = l.location_id;
+  FIELDS.forEach(f => setVal('f-' + f, l[f]));
+  document.querySelectorAll('.list-item').forEach(el => el.classList.toggle('selected', el.dataset.id === enc));
+  status('Editing ' + (l.display_name || l.location_id));
+}
+
+function newLocation(){ clearForm(); status('New location: fill in Location ID and Save'); document.getElementById('f-location_id').focus(); }
+function clearForm(){
+  current = null;
+  document.getElementById('loc-form').reset();
+  document.getElementById('orig-id').value = '';
+  document.querySelectorAll('.list-item').forEach(el => el.classList.remove('selected'));
+}
+
+function payload(){
+  const p = {};
+  FIELDS.forEach(k => { const v = val('f-' + k); p[k] = v === '' ? null : v; });
+  return p;
+}
+
+async function saveLocation(){
+  const id = val('f-location_id');
+  if (!id){ status('Location ID is required', 'error'); return; }
+  const body = JSON.stringify(payload());
+  try {
+    let r;
+    if (current){
+      r = await fetch(API + '?location_id=eq.' + encodeURIComponent(current), {
+        method: 'PATCH', headers: {'Content-Type':'application/json','Prefer':'return=representation'}, body });
+    } else {
+      r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json','Prefer':'return=representation'}, body });
+    }
+    if (!r.ok){ status('Save failed: ' + (await r.text()), 'error'); return; }
+    current = id;
+    status('Saved ' + id, 'success');
+    await loadList(); selectLoc(encodeURIComponent(id));
+  } catch(e){ status('Error: ' + e.message, 'error'); }
+}
+
+async function deleteLocation(){
+  if (!current){ status('Nothing selected', 'error'); return; }
+  if (!confirm('Delete location "' + current + '"?')) return;
+  const r = await fetch(API + '?location_id=eq.' + encodeURIComponent(current), { method: 'DELETE' });
+  if (!r.ok){ status('Delete failed: ' + (await r.text()), 'error'); return; }
+  status('Deleted ' + current, 'success'); clearForm(); await loadList();
+}
+
+loadList();
+</script>
+</body>
+</html>
