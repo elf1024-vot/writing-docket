@@ -93,7 +93,6 @@ FILES = [
     ("nginx/html/chapter-editor.html", "nginx/html/chapter-editor.html"),
     ("nginx/html/location-editor.html", "nginx/html/location-editor.html"),
     ("nginx/html/dashboard.html", "nginx/html/dashboard.html"),
-    ("nginx/html/notes-editor.html", "nginx/html/notes-editor.html"),
     ("nginx/html/chapter-tracker.html", "nginx/html/chapter-tracker.html"),
     ("nginx/html/search.html", "nginx/html/search.html"),
     ("nginx/html/faq.html", "nginx/html/faq.html"),

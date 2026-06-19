@@ -364,7 +364,6 @@ Write each file below. Read the corresponding template from the skills repo (the
 11. `nginx/html/chapter-editor.html` — from templates/nginx/html/chapter-editor.html (copy + placeholder substitution). CRUD on chapters; composite PK (book,chapter,part) — PATCH filters on all three. Has "+ New Chapter" and "+ Add Part".
 12. `nginx/html/location-editor.html` — from templates/nginx/html/location-editor.html (copy + placeholder substitution).
 13. `nginx/html/dashboard.html` — from templates/nginx/html/dashboard.html (copy + placeholder substitution). Read-only live dashboard; CSS-bar chart for word count (no external Chart.js — fully offline).
-14. `nginx/html/notes-editor.html` — from templates/nginx/html/notes-editor.html (copy + placeholder substitution).
 15. `nginx/html/chapter-tracker.html` — from templates/nginx/html/chapter-tracker.html (copy + placeholder substitution).
 15b. `nginx/html/search.html` — from templates/nginx/html/search.html (copy + placeholder substitution). Built-in search page (full-text + semantic). Calls PostgREST RPC at `/api/rpc/search_fts` and `/api/rpc/search_semantic`, and Ollama at `/ollama/api/embeddings`; falls back to text search when Ollama is down.
 16. `nginx/html/faq.html` — from templates/nginx/html/faq.html (copy + placeholder substitution).
