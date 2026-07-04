@@ -50,7 +50,7 @@ EMBED_MODEL = _env.get("EMBED_MODEL", "nomic-embed-text")
 
 # Whitelist for pg_write — only these patterns are allowed.
 # The synthesis-table entries are added by the build ONLY when synthesis_tracking=yes
-# (those tables don't exist otherwise). The build replaces the {{SYNTHESIS_WHITELIST}}
+# (those tables don't exist otherwise). The build replaces the SYNTHESIS_WHITELIST
 # marker line below with either nothing (synthesis off) or the three synthesis entries.
 WRITE_WHITELIST = [
     f"UPDATE {SCHEMA}.chapters",

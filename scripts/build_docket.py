@@ -185,6 +185,13 @@ def build(project_path: Path) -> int:
     }
 
     def sub(text: str) -> str:
+        # The two conditional markers live inside comment lines in the templates
+        # ("    # {{SYNTHESIS_WHITELIST}}" and "-- {{SYNTHESIS_TABLES}}").
+        # Replace the whole marker line, comment prefix included, so the injected
+        # block's first line is not commented out. The generic token pass below
+        # still covers any bare occurrence as a fallback.
+        text = text.replace("    # {{SYNTHESIS_WHITELIST}}", syn_whitelist)
+        text = text.replace("-- {{SYNTHESIS_TABLES}}", syn_tables)
         return re.sub(r"\{\{([A-Z_]+)\}\}", lambda m: repl.get(m.group(1), m.group(0)), text)
 
     def strip_block(text: str, start: str, end: str) -> str:
